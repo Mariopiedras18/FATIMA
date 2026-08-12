@@ -97,10 +97,24 @@ export default function Cortes() {
     }
   };
 
-  // --- CORTE PRIMARIO LOGICA ---
   const loadPreview = async () => {
-    const { data } = await cuts.preview({ fecha: form.fecha, turno: form.turno });
-    setPreview(data);
+    try {
+      const { data } = await cuts.preview({ fecha: form.fecha, turno: form.turno });
+      if (data) {
+        setPreview({
+          ...data,
+          total_tickets: Number(data.total_tickets || 0),
+          efectivo_bruto: Number(data.efectivo_bruto || 0),
+          tarjeta_bruto: Number(data.tarjeta_bruto || 0),
+          total_gastos: Number(data.total_gastos || 0),
+          total_consumo_propio: Number(data.total_consumo_propio || 0),
+          efectivo_final: Number(data.efectivo_final || 0),
+          total_final: Number(data.total_final || 0)
+        });
+      }
+    } catch (err) {
+      console.error('Error al cargar vista previa del corte:', err);
+    }
   };
 
   useEffect(() => {

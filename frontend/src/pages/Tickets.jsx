@@ -25,8 +25,16 @@ export default function Tickets() {
         tickets.getAll({ fecha: form.fecha, turno: form.turno }),
         tickets.getTotals({ fecha: form.fecha, turno: form.turno })
       ]);
-      setList(ticketsRes.data);
-      setTotals(totalsRes.data);
+      setList(ticketsRes.data || []);
+      
+      const resTotals = totalsRes.data || {};
+      setTotals({
+        total_tickets: Number(resTotals.total_tickets || 0),
+        efectivo_bruto: Number(resTotals.efectivo_bruto || 0),
+        tarjeta_bruto: Number(resTotals.tarjeta_bruto || 0),
+        consumo_propio: Number(resTotals.consumo_propio || 0),
+        total_vendido: Number(resTotals.total_vendido || 0)
+      });
     } catch (err) {
       console.error(err);
     } finally {
