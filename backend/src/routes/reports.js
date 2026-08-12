@@ -4,24 +4,32 @@ const { db } = require('../database/connection');
 const { auth } = require('../middleware/auth');
 
 router.get('/ventas', auth, async (req, res) => {
-  const { desde, hasta, turno } = req.query;
+  const { desde, hasta, turno, folio_desde, folio_hasta } = req.query;
   await db.read();
   let list = db.data.ticket_records || [];
   if (desde) list = list.filter(t => t.fecha >= desde);
   if (hasta) list = list.filter(t => t.fecha <= hasta);
   if (turno) list = list.filter(t => t.turno === turno);
+  if (folio_desde) list = list.filter(t => t.folio && Number(t.folio) >= Number(folio_desde));
+  if (folio_hasta) list = list.filter(t => t.folio && Number(t.folio) <= Number(folio_hasta));
 
   const grouped = {};
   list.forEach(t => {
     const key = `${t.fecha}_${t.turno}`;
-    if (!grouped[key]) grouped[key] = { fecha: t.fecha, turno: t.turno, tickets: 0, efectivo: 0, tarjeta: 0, combinado: 0, total: 0 };
+    if (!grouped[key]) grouped[key] = { fecha: t.fecha, turno: t.turno, tickets: 0, efectivo: 0, tarjeta: 0, combinado: 0, total: 0, folios: [] };
     grouped[key].tickets++;
     grouped[key].total += t.monto_total;
+    if (t.folio) grouped[key].folios.push(t.folio);
     if (t.forma_pago === 'efectivo') grouped[key].efectivo += t.monto_total;
     else if (t.forma_pago === 'tarjeta') grouped[key].tarjeta += t.monto_total;
     else { grouped[key].combinado += t.monto_total; grouped[key].efectivo += t.monto_efectivo || 0; grouped[key].tarjeta += t.monto_tarjeta || 0; }
   });
-  res.json(Object.values(grouped).sort((a, b) => b.fecha.localeCompare(a.fecha) || b.turno.localeCompare(a.turno)));
+  const result = Object.values(grouped).map(g => ({
+    ...g,
+    folio_min: g.folios.length ? Math.min(...g.folios.map(Number)) : '-',
+    folio_max: g.folios.length ? Math.max(...g.folios.map(Number)) : '-'
+  })).sort((a, b) => b.fecha.localeCompare(a.fecha) || b.turno.localeCompare(a.turno));
+  res.json(result);
 });
 
 router.get('/cortes', auth, async (req, res) => {
@@ -47,6 +55,9 @@ router.get('/incidencias', auth, async (req, res) => {
   const { desde, hasta, estatus } = req.query;
   await db.read();
   let list = db.data.incidents || [];
+  if (req.user.rol !== 'admin') {
+    list = list.filter(i => !i.es_privado);
+  }
   if (desde) list = list.filter(i => i.fecha >= desde);
   if (hasta) list = list.filter(i => i.fecha <= hasta);
   if (estatus) list = list.filter(i => i.estatus === estatus);

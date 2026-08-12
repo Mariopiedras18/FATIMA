@@ -34,7 +34,9 @@ export default function Reportes() {
   const [filters, setFilters] = useState({
     desde: getThirtyDaysAgoLocalDate(),
     hasta: getTodayLocalDate(),
-    turno: ''
+    turno: '',
+    folio_desde: '',
+    folio_hasta: ''
   });
 
   const loadData = async () => {
@@ -42,6 +44,8 @@ export default function Reportes() {
     try {
       const params = { desde: filters.desde, hasta: filters.hasta };
       if (filters.turno) params.turno = filters.turno;
+      if (filters.folio_desde) params.folio_desde = filters.folio_desde;
+      if (filters.folio_hasta) params.folio_hasta = filters.folio_hasta;
 
       let result;
       switch (activeTab) {
@@ -65,12 +69,33 @@ export default function Reportes() {
 
   const exportCSV = () => {
     if (!data.length) return;
-    const headers = Object.keys(data[0]).filter(k => !k.includes('id')).join(',');
-    const rows = data.map(row => Object.values(row).filter(v => typeof v !== 'object').join(',')).join('\n');
-    const blob = new Blob([`${headers}\n${rows}`], { type: 'text/csv' });
+    let csvContent = '';
+
+    if (activeTab === 'ventas') {
+      const headers = ['Fecha', 'Turno', 'Folio Minimo', 'Folio Maximo', 'Total Tickets', 'Efectivo ($)', 'Tarjeta ($)', 'Total Ingresos ($)'];
+      const rows = data.map(r => [
+        r.fecha,
+        r.turno === 'manana' ? 'Manana' : 'Tarde',
+        r.folio_min || '-',
+        r.folio_max || '-',
+        r.tickets,
+        (r.efectivo || 0).toFixed(2),
+        (r.tarjeta || 0).toFixed(2),
+        (r.total || 0).toFixed(2)
+      ]);
+      csvContent = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+    } else {
+      const headers = Object.keys(data[0]).filter(k => !k.includes('id') && typeof data[0][k] !== 'object').join(',');
+      const rows = data.map(row => Object.entries(row).filter(([k, v]) => !k.includes('id') && typeof v !== 'object').map(([, v]) => `"${v}"`).join(',')).join('\n');
+      csvContent = `${headers}\n${rows}`;
+    }
+
+    const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = `reporte_${activeTab}_${filters.desde}_${filters.hasta}.csv`; a.click();
+    a.href = url;
+    a.download = `reporte_${activeTab}_${filters.desde}_a_${filters.hasta}.csv`;
+    a.click();
   };
 
   const tabs = [
@@ -154,17 +179,29 @@ export default function Reportes() {
       {/* Filtros */}
       <div className="card">
         <div className="flex flex-col md:flex-row gap-4 items-end justify-between">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full md:w-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 w-full md:w-auto">
             <div>
-              <label className="label">Desde</label>
+              <label className="label">Desde Fecha</label>
               <div className="relative">
                 <input type="date" value={filters.desde} onChange={(e) => setFilters({ ...filters, desde: e.target.value })} className="input-field" />
               </div>
             </div>
             <div>
-              <label className="label">Hasta</label>
+              <label className="label">Hasta Fecha</label>
               <input type="date" value={filters.hasta} onChange={(e) => setFilters({ ...filters, hasta: e.target.value })} className="input-field" />
             </div>
+            {activeTab === 'ventas' && (
+              <>
+                <div>
+                  <label className="label">Folio Desde</label>
+                  <input type="number" placeholder="Ej. 6" value={filters.folio_desde} onChange={(e) => setFilters({ ...filters, folio_desde: e.target.value })} className="input-field" />
+                </div>
+                <div>
+                  <label className="label">Folio Hasta</label>
+                  <input type="number" placeholder="Ej. 9" value={filters.folio_hasta} onChange={(e) => setFilters({ ...filters, folio_hasta: e.target.value })} className="input-field" />
+                </div>
+              </>
+            )}
             {activeTab !== 'cortes' && (
               <div>
                 <label className="label">Turno</label>
