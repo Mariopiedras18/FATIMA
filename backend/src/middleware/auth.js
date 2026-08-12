@@ -1,3 +1,4 @@
+const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET || 'tutti_bocado_fatima_2026_secret_key';
 
 function auth(req, res, next) {

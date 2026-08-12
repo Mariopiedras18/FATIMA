@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: fatima-backend
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node backend/src/server.js
+    autoDeploy: true
+    branch: main
+    envVars:
+      - key: NODE_ENV
+        value: production

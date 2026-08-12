@@ -14,7 +14,8 @@ export default function Incidencias() {
     tipo: 'operacion',
     descripcion: '',
     prioridad: 'media',
-    fecha_compromiso: ''
+    fecha_compromiso: '',
+    es_privado: false
   });
 
   const loadData = async () => {
@@ -33,7 +34,7 @@ export default function Incidencias() {
       } else {
         await incidents.create(form);
       }
-      setForm({ fecha: new Date().toISOString().split('T')[0], turno: 'manana', tipo: 'operacion', descripcion: '', prioridad: 'media', fecha_compromiso: '' });
+      setForm({ fecha: new Date().toISOString().split('T')[0], turno: 'manana', tipo: 'operacion', descripcion: '', prioridad: 'media', fecha_compromiso: '', es_privado: false });
       setShowForm(false);
       setEditItem(null);
       loadData();
@@ -43,7 +44,7 @@ export default function Incidencias() {
   };
 
   const handleEdit = (item) => {
-    setForm({ fecha: item.fecha, turno: item.turno, tipo: item.tipo, descripcion: item.descripcion, prioridad: item.prioridad, fecha_compromiso: item.fecha_compromiso || '' });
+    setForm({ fecha: item.fecha, turno: item.turno, tipo: item.tipo, descripcion: item.descripcion, prioridad: item.prioridad, fecha_compromiso: item.fecha_compromiso || '', es_privado: Boolean(item.es_privado) });
     setEditItem(item);
     setShowForm(true);
   };
@@ -62,15 +63,15 @@ export default function Incidencias() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Incidencias</h2>
-          <p className="text-gray-500 text-sm">Problemas de la sucursal</p>
+          <p className="text-gray-500 text-sm">Problemas de la sucursal y reportes directos al Administrador</p>
         </div>
-        <button onClick={() => { setShowForm(!showForm); setEditItem(null); setForm({ fecha: new Date().toISOString().split('T')[0], turno: 'manana', tipo: 'operacion', descripcion: '', prioridad: 'media', fecha_compromiso: '' }); }} className="btn-primary flex items-center gap-2">
+        <button onClick={() => { setShowForm(!showForm); setEditItem(null); setForm({ fecha: new Date().toISOString().split('T')[0], turno: 'manana', tipo: 'operacion', descripcion: '', prioridad: 'media', fecha_compromiso: '', es_privado: false }); }} className="btn-primary flex items-center gap-2">
           <Plus size={18} /> Nueva Incidencia
         </button>
       </div>
 
       {showForm && (
-        <div className="card mb-6">
+        <div className="card mb-6 border-l-4 border-l-purple-500">
           <h3 className="text-lg font-semibold mb-4">{editItem ? 'Editar' : 'Nueva'} Incidencia</h3>
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -100,12 +101,27 @@ export default function Incidencias() {
             </div>
             <div className="md:col-span-2">
               <label className="label">Descripción</label>
-              <textarea value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} className="input-field" rows={3} required />
+              <textarea value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} className="input-field" rows={3} required placeholder="Escribe aquí los detalles de la incidencia..." />
             </div>
             <div>
               <label className="label">Fecha compromiso</label>
               <input type="date" value={form.fecha_compromiso} onChange={(e) => setForm({ ...form, fecha_compromiso: e.target.value })} className="input-field" />
             </div>
+            
+            {/* Opción de Privacidad al Administrador */}
+            <div className="md:col-span-2 p-3 bg-purple-50 rounded-lg border border-purple-200 flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="es_privado"
+                checked={form.es_privado}
+                onChange={(e) => setForm({ ...form, es_privado: e.target.checked })}
+                className="w-5 h-5 text-purple-600 rounded border-purple-300 focus:ring-purple-500 cursor-pointer"
+              />
+              <label htmlFor="es_privado" className="text-sm font-medium text-purple-900 cursor-pointer">
+                🔒 Mensaje Privado al Administrador <span className="text-xs font-normal text-purple-700 block">(Si marcas esto, la incidencia solo la podrá ver el Administrador y no los demás compañeros)</span>
+              </label>
+            </div>
+
             <div className="flex items-end gap-3">
               <button type="submit" className="btn-primary">{editItem ? 'Actualizar' : 'Guardar'}</button>
               <button type="button" onClick={() => { setShowForm(false); setEditItem(null); }} className="btn-secondary">Cancelar</button>
@@ -131,9 +147,18 @@ export default function Incidencias() {
             </thead>
             <tbody>
               {list.map((i) => (
-                <tr key={i.id} className="border-t border-gray-100">
+                <tr key={i.id} className={`border-t border-gray-100 ${i.es_privado ? 'bg-purple-50/40' : ''}`}>
                   <td className="table-cell">{i.fecha}</td>
-                  <td className="table-cell">{tipoLabel[i.tipo]}</td>
+                  <td className="table-cell">
+                    <div className="flex items-center gap-1.5">
+                      {tipoLabel[i.tipo]}
+                      {i.es_privado && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-semibold border border-purple-200">
+                          🔒 Privado (Admin)
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td className="table-cell max-w-xs truncate">{i.descripcion}</td>
                   <td className="table-cell"><span className={`badge ${prioridadBadge[i.prioridad]}`}>{i.prioridad}</span></td>
                   <td className="table-cell"><span className={`badge ${estatusBadge[i.estatus]}`}>{i.estatus.replace('_', ' ')}</span></td>

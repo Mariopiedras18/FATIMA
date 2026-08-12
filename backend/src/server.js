@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const { initDB } = require('./database/connection');
+const { initFirestore, seedInitialData } = require('./database/firestore');
 
 const compression = require('compression');
 
@@ -11,11 +11,17 @@ const PORT = process.env.PORT || 3000;
 
 app.disable('x-powered-by');
 
-initDB().then(() => {
-  console.log('Base de datos inicializada');
-}).catch(err => {
-  console.error('Error al inicializar DB:', err);
-});
+try {
+  initFirestore();
+  seedInitialData().then(() => {
+    console.log('✅ Firestore inicializado y datos seed verificados');
+  }).catch(err => {
+    console.error('⚠️ Error en seed de datos:', err);
+  });
+} catch (err) {
+  console.error('❌ Error al conectar con Firestore:', err.message);
+  process.exit(1);
+}
 
 app.use(compression());
 app.use(cors());

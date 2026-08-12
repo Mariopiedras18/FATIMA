@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "description": "Sistema Interno Fátima Tutti Bocado - Runner principal",
   "scripts": {
+    "start": "npm start --prefix backend",
+    "build": "npm install --prefix backend",
     "dev": "concurrently --kill-others-on-fail --prefix-colors \"bgBlue.bold,bgMagenta.bold\" --prefix \"[{name}]\" --names \"BACKEND,FRONTEND\" \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
     "backend": "npm run dev --prefix backend",
     "frontend": "npm run dev --prefix frontend"
