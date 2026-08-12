@@ -1,0 +1,117 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "API Fátima - Tutti Bocado",
+    "description": "Documentación OpenAPI (Swagger) del Backend del Sistema Fátima",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:4000/api",
+      "description": "Servidor de Desarrollo Local"
+    }
+  ],
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "summary": "Iniciar Sesión",
+        "description": "Permite a los usuarios autenticarse y obtener un token JWT.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "usuario": { "type": "string", "example": "admin" },
+                  "password": { "type": "string", "example": "admin123" }
+                },
+                "required": ["usuario", "password"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Inicio de sesión exitoso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": { "type": "string" },
+                    "user": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "integer" },
+                        "nombre": { "type": "string" },
+                        "usuario": { "type": "string" },
+                        "rol": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Usuario o contraseña inválidos" }
+        }
+      }
+    },
+    "/tickets": {
+      "get": {
+        "summary": "Obtener tickets filtrados",
+        "parameters": [
+          { "name": "fecha", "in": "query", "schema": { "type": "string" }, "example": "2026-07-20" },
+          { "name": "turno", "in": "query", "schema": { "type": "string", "enum": ["manana", "tarde"] } }
+        ],
+        "responses": {
+          "200": { "description": "Lista de tickets" }
+        },
+        "security": [{ "bearerAuth": [] }]
+      },
+      "post": {
+        "summary": "Crear un nuevo ticket",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "fecha": { "type": "string", "example": "2026-07-20" },
+                  "turno": { "type": "string", "example": "manana" },
+                  "folio_4": { "type": "string", "example": "7985" },
+                  "monto_total": { "type": "number", "example": 554 },
+                  "forma_pago": { "type": "string", "example": "efectivo" }
+                },
+                "required": ["fecha", "turno", "folio_4", "monto_total", "forma_pago"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Ticket creado" }
+        },
+        "security": [{ "bearerAuth": [] }]
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Estado del servidor",
+        "responses": {
+          "200": { "description": "Servidor funcionando ok" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}

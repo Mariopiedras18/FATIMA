@@ -1,0 +1,132 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* --- SISTEMA DE DISEÑO CON SOMBRAS Y TONOS CAFÉ --- */
+  --bg-app: #F6F0E6;
+  --card-bg: #FFFFFF;
+  --card-border: #E6DCCF;
+  --card-shadow: 0 10px 25px -5px rgba(61, 35, 20, 0.08), 0 2px 8px -2px rgba(61, 35, 20, 0.04);
+  --color-primary: #2C1A1D;
+  --color-primary-hover: #1A0F11;
+  --color-caramel: #8C5A32;
+  --color-amber-gold: #D97706;
+  --font-heading: 'Playfair Display', serif;
+  --font-body: 'Plus Jakarta Sans', sans-serif;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--bg-app);
+  color: #2D1E16;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, .font-serif-title {
+  font-family: var(--font-heading);
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-[#2C1A1D] hover:bg-[#1F120A] text-[#FDFBF7] font-semibold py-2.5 px-5 rounded-xl shadow-[0_4px_14px_rgba(44,26,29,0.25)] transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-2 border border-[#3D2428];
+  }
+
+  .btn-secondary {
+    @apply bg-[#EFE6D5] hover:bg-[#E2D6C0] text-[#2C1A1D] font-semibold py-2.5 px-5 rounded-xl border border-[#D9CBBA] shadow-sm transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-2;
+  }
+
+  .btn-danger {
+    @apply bg-rose-700 hover:bg-rose-800 text-white font-semibold py-2.5 px-5 rounded-xl shadow-md transition-all duration-200 active:scale-[0.98];
+  }
+
+  .input-field {
+    @apply w-full px-3.5 py-2.5 bg-white border border-[#DFD4C2] rounded-xl text-[#2C1A1D] placeholder:text-[#2C1A1D]/40 focus:outline-none focus:ring-2 focus:ring-[#8C5A32]/25 focus:border-[#8C5A32] transition-all duration-200 text-sm shadow-[0_2px_6px_rgba(61,35,20,0.03)];
+  }
+
+  .label {
+    @apply block text-xs font-bold uppercase tracking-wider text-[#3D2314]/90 mb-1.5;
+  }
+
+  .card {
+    @apply bg-white rounded-2xl border border-[#E6DCCF] p-6 shadow-[0_10px_25px_-5px_rgba(61,35,20,0.08),0_2px_8px_-2px_rgba(61,35,20,0.04)] transition-all duration-200 hover:shadow-[0_14px_30px_-5px_rgba(61,35,20,0.12)];
+  }
+
+  .table-header {
+    @apply bg-[#F0E6D5] text-left text-xs font-bold text-[#2C1A1D] uppercase tracking-wider border-b border-[#E2D5C0];
+  }
+
+  .table-cell {
+    @apply px-5 py-4 whitespace-nowrap text-sm text-[#2C1A1D] border-b border-[#F4EDE2];
+  }
+
+  .badge {
+    @apply px-2.5 py-1 text-xs font-bold rounded-lg tracking-wide uppercase border shadow-sm;
+  }
+
+  .badge-success {
+    @apply bg-[#E8F3ED] text-[#1E5631] border-[#C3E2D1];
+  }
+
+  .badge-warning {
+    @apply bg-[#FEF3C7] text-[#B45309] border-[#FDE68A];
+  }
+
+  .badge-danger {
+    @apply bg-rose-100/80 text-rose-900 border-rose-200/80;
+  }
+
+  .badge-info {
+    @apply bg-[#EBF3FA] text-[#1D4ED8] border-[#C9DEFA];
+  }
+
+  .badge-purple {
+    @apply bg-[#F5E6EC] text-[#801B46] border-[#E8C2D3];
+  }
+}
+
+.screen-only-hidden {
+  display: none;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-ticket-area, .print-ticket-area * {
+    visibility: visible;
+  }
+  .print-ticket-area.screen-only-hidden {
+    display: block !important;
+  }
+  .print-ticket-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 58mm;
+    max-width: 100%;
+    margin: 0;
+    padding: 2mm;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 11px;
+    line-height: 1.2;
+    color: #000;
+    background: #fff;
+  }
+  .print-ticket-area .divider {
+    border-top: 1px dashed #000;
+    margin: 4px 0;
+  }
+  .print-ticket-area .center {
+    text-align: center;
+  }
+  .print-ticket-area .right {
+    text-align: right;
+  }
+  .print-ticket-area .bold {
+    font-weight: bold;
+  }
+  .print-ticket-area table {
+    width: 100%;
+  }
+}

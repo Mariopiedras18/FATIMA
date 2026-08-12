@@ -1,0 +1,110 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "nombre": "Ana García",
+      "usuario": "admin",
+      "password": "$2a$10$Kc/rUXcwJK.wGYOwYcbQd.eeeJYwWwyQYyNW8Z.zPKPZhQdf6Se2m",
+      "rol": "admin",
+      "activo": true,
+      "created_at": "2026-07-01T08:00:00.000Z"
+    }
+  ],
+  "branches": [
+    {
+      "id": 1,
+      "nombre": "Fátima",
+      "activo": true
+    }
+  ],
+  "cut_recipients": [
+    {
+      "id": 1,
+      "nombre": "Lic. Roberto (Socio)",
+      "activo": true,
+      "created_at": "2026-07-01T08:00:00.000Z"
+    },
+    {
+      "id": 2,
+      "nombre": "Mario (Administrador)",
+      "activo": true,
+      "created_at": "2026-07-01T08:00:00.000Z"
+    },
+    {
+      "id": 3,
+      "nombre": "Caja Chica / Fondo Principal",
+      "activo": true,
+      "created_at": "2026-07-01T08:00:00.000Z"
+    }
+  ],
+  "ticket_records": [],
+  "branch_expenses": [],
+  "cash_cuts": [],
+  "secondary_cuts": [],
+  "activity_logs": [],
+  "incidents": [],
+  "improvements": [],
+  "assets": [],
+  "tasks": [
+    {
+      "id": 3,
+      "branch_id": 1,
+      "fecha": "2026-08-10",
+      "turno": "manana",
+      "titulo": "Puertas y ventanas",
+      "tipo": "cajon",
+      "estatus": "pendiente",
+      "completada_por": null,
+      "completada_at": null,
+      "created_at": "2026-08-10T04:18:41.791Z"
+    },
+    {
+      "id": 4,
+      "branch_id": 1,
+      "fecha": "2026-08-10",
+      "turno": "manana",
+      "titulo": "Lavar botes de basura",
+      "tipo": "cajon",
+      "estatus": "pendiente",
+      "completada_por": null,
+      "completada_at": null,
+      "created_at": "2026-08-10T04:18:41.791Z"
+    },
+    {
+      "id": 5,
+      "branch_id": 1,
+      "fecha": "2026-08-10",
+      "turno": "manana",
+      "titulo": "Lavar baño",
+      "tipo": "cajon",
+      "estatus": "pendiente",
+      "completada_por": null,
+      "completada_at": null,
+      "created_at": "2026-08-10T04:18:41.791Z"
+    },
+    {
+      "id": 6,
+      "branch_id": 1,
+      "fecha": "2026-08-10",
+      "turno": "tarde",
+      "titulo": "Limpiar plantas, cuadros y lámparas",
+      "tipo": "cajon",
+      "estatus": "pendiente",
+      "completada_por": null,
+      "completada_at": null,
+      "created_at": "2026-08-10T04:18:41.791Z"
+    },
+    {
+      "id": 7,
+      "branch_id": 1,
+      "fecha": "2026-08-10",
+      "turno": "tarde",
+      "titulo": "Mesas, sillas, exhibidores y maquinitas",
+      "tipo": "cajon",
+      "estatus": "pendiente",
+      "completada_por": null,
+      "completada_at": null,
+      "created_at": "2026-08-10T04:18:41.791Z"
+    }
+  ]
+}
