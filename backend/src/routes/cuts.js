@@ -9,16 +9,27 @@ router.post('/preview', auth, async (req, res) => {
     const hora_cierre = new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
 
     const allTickets = await getAll('ticket_records');
-    const tickets = allTickets.filter(t => t.fecha === fecha && t.turno === turno && !t.corte_id);
+    const tickets = allTickets.filter(t => t.fecha === fecha && t.turno === turno && (!t.corte_id || t.corte_id === null));
 
     const allExpenses = await getAll('branch_expenses');
-    const expenses = allExpenses.filter(e => !e.cash_cut_id && e.fecha <= fecha && e.turno === turno);
+    const expenses = allExpenses.filter(e => (!e.cash_cut_id || e.cash_cut_id === null) && e.fecha <= fecha && e.turno === turno);
 
-    const efectivo = tickets.filter(t => t.forma_pago === 'efectivo').reduce((s, t) => s + Number(t.monto_total || 0), 0)
-      + tickets.filter(t => t.forma_pago === 'combinado').reduce((s, t) => s + Number(t.monto_efectivo || 0), 0);
-    const tarjeta = tickets.filter(t => t.forma_pago === 'tarjeta').reduce((s, t) => s + Number(t.monto_total || 0), 0)
-      + tickets.filter(t => t.forma_pago === 'combinado').reduce((s, t) => s + Number(t.monto_tarjeta || 0), 0);
-    const consumo_propio = tickets.filter(t => t.forma_pago === 'consumo_propio').reduce((s, t) => s + Number(t.monto_total || 0), 0);
+    let efectivo = 0;
+    let tarjeta = 0;
+    let consumo_propio = 0;
+
+    tickets.forEach(t => {
+      const monto = Number(t.monto_total || 0);
+      const forma = (t.forma_pago || '').toLowerCase();
+      if (forma === 'efectivo') efectivo += monto;
+      else if (forma === 'tarjeta') tarjeta += monto;
+      else if (forma === 'consumo_propio') consumo_propio += monto;
+      else if (forma === 'combinado') {
+        efectivo += Number(t.monto_efectivo || 0);
+        tarjeta += Number(t.monto_tarjeta || 0);
+      }
+    });
+
     const total_gastos = expenses.reduce((s, e) => s + Number(e.monto || 0), 0);
     const efectivo_final = efectivo - total_gastos;
 
@@ -87,16 +98,27 @@ router.post('/', auth, async (req, res) => {
     const hora_cierre = new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
 
     const allTickets = await getAll('ticket_records');
-    const tickets = allTickets.filter(t => t.fecha === fecha && t.turno === turno && !t.corte_id);
+    const tickets = allTickets.filter(t => t.fecha === fecha && t.turno === turno && (!t.corte_id || t.corte_id === null));
 
     const allExpenses = await getAll('branch_expenses');
-    const expenses = allExpenses.filter(e => !e.cash_cut_id && e.fecha <= fecha && e.turno === turno);
+    const expenses = allExpenses.filter(e => (!e.cash_cut_id || e.cash_cut_id === null) && e.fecha <= fecha && e.turno === turno);
 
-    const efectivo_bruto = tickets.filter(t => t.forma_pago === 'efectivo').reduce((s, t) => s + Number(t.monto_total || 0), 0)
-      + tickets.filter(t => t.forma_pago === 'combinado').reduce((s, t) => s + Number(t.monto_efectivo || 0), 0);
-    const tarjeta_bruto = tickets.filter(t => t.forma_pago === 'tarjeta').reduce((s, t) => s + Number(t.monto_total || 0), 0)
-      + tickets.filter(t => t.forma_pago === 'combinado').reduce((s, t) => s + Number(t.monto_tarjeta || 0), 0);
-    const consumo_propio = tickets.filter(t => t.forma_pago === 'consumo_propio').reduce((s, t) => s + Number(t.monto_total || 0), 0);
+    let efectivo_bruto = 0;
+    let tarjeta_bruto = 0;
+    let consumo_propio = 0;
+
+    tickets.forEach(t => {
+      const monto = Number(t.monto_total || 0);
+      const forma = (t.forma_pago || '').toLowerCase();
+      if (forma === 'efectivo') efectivo_bruto += monto;
+      else if (forma === 'tarjeta') tarjeta_bruto += monto;
+      else if (forma === 'consumo_propio') consumo_propio += monto;
+      else if (forma === 'combinado') {
+        efectivo_bruto += Number(t.monto_efectivo || 0);
+        tarjeta_bruto += Number(t.monto_tarjeta || 0);
+      }
+    });
+
     const total_gastos = expenses.reduce((s, e) => s + Number(e.monto || 0), 0);
     const efectivo_final = efectivo_bruto - total_gastos;
     const total_final = efectivo_final + tarjeta_bruto;

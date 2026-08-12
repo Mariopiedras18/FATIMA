@@ -28,18 +28,32 @@ router.get('/totals', auth, async (req, res) => {
     if (turno) list = list.filter(t => t.turno === turno);
 
     const total_tickets = list.length;
-    const efectivo = list.filter(t => t.forma_pago === 'efectivo').reduce((s, t) => s + Number(t.monto_total || 0), 0);
-    const tarjeta = list.filter(t => t.forma_pago === 'tarjeta').reduce((s, t) => s + Number(t.monto_total || 0), 0);
-    const consumo_propio = list.filter(t => t.forma_pago === 'consumo_propio').reduce((s, t) => s + Number(t.monto_total || 0), 0);
-    const comb_efectivo = list.filter(t => t.forma_pago === 'combinado').reduce((s, t) => s + Number(t.monto_efectivo || 0), 0);
-    const comb_tarjeta = list.filter(t => t.forma_pago === 'combinado').reduce((s, t) => s + Number(t.monto_tarjeta || 0), 0);
+    let efectivo = 0;
+    let tarjeta = 0;
+    let consumo_propio = 0;
+
+    list.forEach(t => {
+      const monto = Number(t.monto_total || 0);
+      const forma = (t.forma_pago || '').toLowerCase();
+
+      if (forma === 'efectivo') {
+        efectivo += monto;
+      } else if (forma === 'tarjeta') {
+        tarjeta += monto;
+      } else if (forma === 'consumo_propio') {
+        consumo_propio += monto;
+      } else if (forma === 'combinado') {
+        efectivo += Number(t.monto_efectivo || 0);
+        tarjeta += Number(t.monto_tarjeta || 0);
+      }
+    });
 
     res.json({
       total_tickets,
-      efectivo_bruto: efectivo + comb_efectivo,
-      tarjeta_bruto: tarjeta + comb_tarjeta,
+      efectivo_bruto: efectivo,
+      tarjeta_bruto: tarjeta,
       consumo_propio,
-      total_vendido: efectivo + tarjeta + comb_efectivo + comb_tarjeta + consumo_propio
+      total_vendido: efectivo + tarjeta + consumo_propio
     });
   } catch (err) {
     res.status(500).json({ error: 'Error al obtener totales' });
