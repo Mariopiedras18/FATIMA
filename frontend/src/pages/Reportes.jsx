@@ -72,13 +72,10 @@ export default function Reportes() {
     let csvContent = '';
 
     if (activeTab === 'ventas') {
-      const headers = ['Fecha', 'Turno', 'Folio Minimo', 'Folio Maximo', 'Total Tickets', 'Efectivo ($)', 'Tarjeta ($)', 'Total Ingresos ($)'];
+      const headers = ['Fecha', 'Turno', 'Efectivo ($)', 'Tarjeta ($)', 'Total Ingresos ($)'];
       const rows = data.map(r => [
         r.fecha,
-        r.turno === 'manana' ? 'Manana' : 'Tarde',
-        r.folio_min || '-',
-        r.folio_max || '-',
-        r.tickets,
+        r.turno === 'manana' ? 'Mañana' : 'Tarde',
         (r.efectivo || 0).toFixed(2),
         (r.tarjeta || 0).toFixed(2),
         (r.total || 0).toFixed(2)

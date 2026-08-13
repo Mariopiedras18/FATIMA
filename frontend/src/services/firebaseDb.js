@@ -84,6 +84,64 @@ async function saveCloudData(data) {
   }
 }
 
+const toAmount = (value) => {
+  const amount = Number(value || 0);
+  return Number.isFinite(amount) ? amount : 0;
+};
+
+function summarizeTickets(tickets = []) {
+  return tickets.reduce((totals, ticket) => {
+    const forma = (ticket.forma_pago || '').toLowerCase();
+    const montoTotal = toAmount(ticket.monto_total);
+
+    totals.total_tickets += 1;
+    if (forma === 'efectivo') {
+      totals.efectivo_bruto += montoTotal;
+    } else if (forma === 'tarjeta') {
+      totals.tarjeta_bruto += montoTotal;
+    } else if (forma === 'consumo_propio') {
+      totals.consumo_propio += toAmount(ticket.monto_consumo_propio || montoTotal);
+    } else if (forma === 'combinado') {
+      totals.efectivo_bruto += toAmount(ticket.monto_efectivo);
+      totals.tarjeta_bruto += toAmount(ticket.monto_tarjeta);
+    }
+
+    return totals;
+  }, {
+    total_tickets: 0,
+    efectivo_bruto: 0,
+    tarjeta_bruto: 0,
+    consumo_propio: 0
+  });
+}
+
+function normalizeTicket(ticketData, id) {
+  const formaPago = ticketData.forma_pago;
+  const montoTotal = toAmount(ticketData.monto_total);
+  let montoEfectivo = 0;
+  let montoTarjeta = 0;
+  let montoConsumoPropio = 0;
+
+  if (formaPago === 'efectivo') montoEfectivo = montoTotal;
+  if (formaPago === 'tarjeta') montoTarjeta = montoTotal;
+  if (formaPago === 'consumo_propio') montoConsumoPropio = montoTotal;
+  if (formaPago === 'combinado') {
+    montoEfectivo = toAmount(ticketData.monto_efectivo);
+    montoTarjeta = toAmount(ticketData.monto_tarjeta);
+  }
+
+  return {
+    ...ticketData,
+    id,
+    monto_total: montoTotal,
+    monto_efectivo: montoEfectivo,
+    monto_tarjeta: montoTarjeta,
+    monto_consumo_propio: montoConsumoPropio,
+    corte_id: ticketData.corte_id || null,
+    created_at: new Date().toISOString()
+  };
+}
+
 function createErrorResponse(message, status = 400) {
   const err = new Error(message);
   err.response = { status, data: { error: message } };
@@ -227,17 +285,19 @@ export const firebaseDb = {
       if (params.fecha) list = list.filter(t => t.fecha === params.fecha);
       if (params.turno) list = list.filter(t => t.turno === params.turno);
 
-      const total_efectivo = list.filter(t => t.forma_pago === 'efectivo').reduce((s, t) => s + (t.monto_total || 0), 0) +
-                             list.filter(t => t.forma_pago === 'combinado').reduce((s, t) => s + (t.monto_efectivo || 0), 0);
-      const total_tarjeta = list.filter(t => t.forma_pago === 'tarjeta').reduce((s, t) => s + (t.monto_total || 0), 0) +
-                            list.filter(t => t.forma_pago === 'combinado').reduce((s, t) => s + (t.monto_tarjeta || 0), 0);
-      const total_vendido = list.reduce((s, t) => s + (t.monto_total || 0), 0);
-      return { data: { total_efectivo, total_tarjeta, total_vendido, count: list.length } };
+      const totals = summarizeTickets(list);
+      return {
+        data: {
+          ...totals,
+          total_consumo_propio: totals.consumo_propio,
+          total_vendido: totals.efectivo_bruto + totals.tarjeta_bruto + totals.consumo_propio
+        }
+      };
     },
     create: async (ticketData) => {
       const data = await getCloudData();
       const newId = data.ticket_records.length > 0 ? Math.max(...data.ticket_records.map(t => t.id)) + 1 : 1;
-      const record = { id: newId, ...ticketData, created_at: new Date().toISOString() };
+      const record = normalizeTicket(ticketData, newId);
       data.ticket_records.push(record);
       await saveCloudData(data);
       return { data: record };
@@ -255,20 +315,66 @@ export const firebaseDb = {
     getOne: async (id) => { const data = await getCloudData(); return { data: data.cash_cuts.find(c => c.id === parseInt(id)) }; },
     preview: async (previewData) => {
       const data = await getCloudData();
-      const tickets = data.ticket_records.filter(t => t.fecha === previewData.fecha && t.turno === previewData.turno);
-      const expenses = data.branch_expenses.filter(e => e.fecha === previewData.fecha && e.turno === previewData.turno);
-      const efectivo_bruto = tickets.filter(t => t.forma_pago === 'efectivo').reduce((s, t) => s + (t.monto_total || 0), 0) +
-                             tickets.filter(t => t.forma_pago === 'combinado').reduce((s, t) => s + (t.monto_efectivo || 0), 0);
-      const tarjeta = tickets.filter(t => t.forma_pago === 'tarjeta').reduce((s, t) => s + (t.monto_total || 0), 0) +
-                      tickets.filter(t => t.forma_pago === 'combinado').reduce((s, t) => s + (t.monto_tarjeta || 0), 0);
-      const gastos = expenses.reduce((s, e) => s + (e.monto || 0), 0);
-      const efectivo_esperado = efectivo_bruto - gastos;
-      return { data: { total_efectivo_bruto: efectivo_bruto, total_tarjeta: tarjeta, total_gastos: gastos, efectivo_esperado, total_vendido: efectivo_bruto + tarjeta, tickets_count: tickets.length } };
+      const tickets = data.ticket_records.filter(t => t.fecha === previewData.fecha && t.turno === previewData.turno && (!t.corte_id || t.corte_id === null));
+      const expenses = data.branch_expenses.filter(e => (!e.cash_cut_id || e.cash_cut_id === null) && e.fecha <= previewData.fecha && e.turno === previewData.turno);
+      const totals = summarizeTickets(tickets);
+      const total_gastos = expenses.reduce((s, e) => s + toAmount(e.monto), 0);
+      const efectivo_final = totals.efectivo_bruto - total_gastos;
+      return {
+        data: {
+          fecha: previewData.fecha,
+          turno: previewData.turno,
+          total_tickets: totals.total_tickets,
+          efectivo_bruto: totals.efectivo_bruto,
+          tarjeta_bruto: totals.tarjeta_bruto,
+          total_consumo_propio: totals.consumo_propio,
+          total_vendido: totals.efectivo_bruto + totals.tarjeta_bruto + totals.consumo_propio,
+          total_gastos,
+          efectivo_final,
+          total_final: efectivo_final + totals.tarjeta_bruto,
+          gastos_incluidos: expenses
+        }
+      };
     },
     create: async (cutData) => {
       const data = await getCloudData();
+      const savedUser = JSON.parse(localStorage.getItem('user') || '{}');
       const newId = data.cash_cuts.length > 0 ? Math.max(...data.cash_cuts.map(c => c.id)) + 1 : 1;
-      const cut = { id: newId, ...cutData, created_at: new Date().toISOString() };
+      const nowISO = new Date().toISOString();
+      const tickets = data.ticket_records.filter(t => t.fecha === cutData.fecha && t.turno === cutData.turno && (!t.corte_id || t.corte_id === null));
+      const expenses = data.branch_expenses.filter(e => (!e.cash_cut_id || e.cash_cut_id === null) && e.fecha <= cutData.fecha && e.turno === cutData.turno);
+      const totals = summarizeTickets(tickets);
+      const total_gastos = expenses.reduce((s, e) => s + toAmount(e.monto), 0);
+      const efectivo_final = totals.efectivo_bruto - total_gastos;
+      const total_final = efectivo_final + totals.tarjeta_bruto;
+      const diferencia_efectivo = toAmount(cutData.efectivo_contado) - efectivo_final;
+      const diferencia_tarjeta = toAmount(cutData.tarjeta_terminal) - totals.tarjeta_bruto;
+      const estatus = (Math.abs(diferencia_efectivo) < 0.5 && Math.abs(diferencia_tarjeta) < 0.5) ? 'cerrado' : 'con_diferencia';
+      const cut = {
+        id: newId,
+        branch_id: 1,
+        fecha: cutData.fecha,
+        turno: cutData.turno,
+        responsable_id: savedUser.id || 1,
+        responsable_nombre: savedUser.nombre || 'Ana Garcia',
+        total_efectivo_bruto: totals.efectivo_bruto,
+        total_tarjeta: totals.tarjeta_bruto,
+        total_consumo_propio: totals.consumo_propio,
+        total_vendido: totals.efectivo_bruto + totals.tarjeta_bruto + totals.consumo_propio,
+        total_gastos,
+        efectivo_final,
+        total_final,
+        efectivo_contado: toAmount(cutData.efectivo_contado),
+        tarjeta_terminal: toAmount(cutData.tarjeta_terminal),
+        diferencia_efectivo,
+        diferencia_tarjeta,
+        estatus,
+        observaciones: cutData.observaciones || null,
+        closed_at: nowISO,
+        created_at: nowISO
+      };
+      tickets.forEach(t => { t.corte_id = newId; });
+      expenses.forEach(e => { e.cash_cut_id = newId; });
       data.cash_cuts.push(cut);
       await saveCloudData(data);
       return { data: cut };
@@ -543,10 +649,61 @@ export const firebaseDb = {
   },
 
   reports: {
-    ventas: async () => { const data = await getCloudData(); return { data: data.ticket_records }; },
-    cortes: async () => { const data = await getCloudData(); return { data: data.cash_cuts }; },
-    gastos: async () => { const data = await getCloudData(); return { data: data.branch_expenses }; },
-    incidencias: async () => { const data = await getCloudData(); return { data: data.incidents }; }
+    ventas: async (params = {}) => {
+      const data = await getCloudData();
+      let list = [...(data.ticket_records || [])];
+      if (params.desde) list = list.filter(t => t.fecha >= params.desde);
+      if (params.hasta) list = list.filter(t => t.fecha <= params.hasta);
+      if (params.turno) list = list.filter(t => t.turno === params.turno);
+      if (params.folio_desde) list = list.filter(t => t.folio_4 && Number(t.folio_4) >= Number(params.folio_desde));
+      if (params.folio_hasta) list = list.filter(t => t.folio_4 && Number(t.folio_4) <= Number(params.folio_hasta));
+
+      const grouped = {};
+      list.forEach(t => {
+        const key = `${t.fecha}_${t.turno}`;
+        if (!grouped[key]) grouped[key] = { fecha: t.fecha, turno: t.turno, tickets: 0, efectivo: 0, tarjeta: 0, total: 0 };
+        grouped[key].tickets++;
+        grouped[key].total += Number(t.monto_total || 0);
+        const forma = (t.forma_pago || '').toLowerCase();
+        if (forma === 'efectivo') grouped[key].efectivo += Number(t.monto_total || 0);
+        else if (forma === 'tarjeta') grouped[key].tarjeta += Number(t.monto_total || 0);
+        else if (forma === 'combinado') {
+          grouped[key].efectivo += Number(t.monto_efectivo || 0);
+          grouped[key].tarjeta += Number(t.monto_tarjeta || 0);
+        }
+      });
+
+      const result = Object.values(grouped).sort((a, b) => b.fecha.localeCompare(a.fecha) || b.turno.localeCompare(a.turno));
+      return { data: result };
+    },
+    cortes: async (params = {}) => {
+      const data = await getCloudData();
+      let list = [...(data.cash_cuts || [])];
+      if (params.desde) list = list.filter(c => c.fecha >= params.desde);
+      if (params.hasta) list = list.filter(c => c.fecha <= params.hasta);
+      const users = data.users || [];
+      const userMap = Object.fromEntries(users.map(u => [u.id, u.nombre]));
+      return { data: list.map(c => ({ ...c, responsable_nombre: userMap[c.responsable_id] || null })).sort((a, b) => b.fecha.localeCompare(a.fecha)) };
+    },
+    gastos: async (params = {}) => {
+      const data = await getCloudData();
+      let list = [...(data.branch_expenses || [])];
+      if (params.desde) list = list.filter(e => e.fecha >= params.desde);
+      if (params.hasta) list = list.filter(e => e.fecha <= params.hasta);
+      if (params.turno) list = list.filter(e => e.turno === params.turno);
+      const users = data.users || [];
+      const userMap = Object.fromEntries(users.map(u => [u.id, u.nombre]));
+      return { data: list.map(e => ({ ...e, registrado_por_nombre: userMap[e.registrado_por] || null })).sort((a, b) => b.fecha.localeCompare(a.fecha)) };
+    },
+    incidencias: async (params = {}) => {
+      const data = await getCloudData();
+      let list = [...(data.incidents || [])];
+      if (params.desde) list = list.filter(i => i.fecha >= params.desde);
+      if (params.hasta) list = list.filter(i => i.fecha <= params.hasta);
+      const users = data.users || [];
+      const userMap = Object.fromEntries(users.map(u => [u.id, u.nombre]));
+      return { data: list.map(i => ({ ...i, responsable_nombre: userMap[i.responsable_id] || null })).sort((a, b) => b.fecha.localeCompare(a.fecha)) };
+    }
   },
 
   dashboard: {
@@ -557,22 +714,19 @@ export const firebaseDb = {
       const ticketsHoy = data.ticket_records.filter(t => t.fecha === hoy);
       const gastosHoy = data.branch_expenses.filter(e => e.fecha === hoy);
 
-      const efecBruto = ticketsHoy.filter(t => t.forma_pago === 'efectivo').reduce((s, t) => s + (t.monto_total || 0), 0) +
-                        ticketsHoy.filter(t => t.forma_pago === 'combinado').reduce((s, t) => s + (t.monto_efectivo || 0), 0);
-      const tarjBruto = ticketsHoy.filter(t => t.forma_pago === 'tarjeta').reduce((s, t) => s + (t.monto_total || 0), 0) +
-                        ticketsHoy.filter(t => t.forma_pago === 'combinado').reduce((s, t) => s + (t.monto_tarjeta || 0), 0);
-      const totalGastos = gastosHoy.reduce((s, e) => s + (e.monto || 0), 0);
+      const totals = summarizeTickets(ticketsHoy);
+      const totalGastos = gastosHoy.reduce((s, e) => s + toAmount(e.monto), 0);
 
       return {
         data: {
           fecha: hoy,
           ventas: {
-            total_vendido: efecBruto + tarjBruto,
-            efectivo_bruto: efecBruto,
-            tarjeta_bruto: tarjBruto,
+            total_vendido: totals.efectivo_bruto + totals.tarjeta_bruto + totals.consumo_propio,
+            efectivo_bruto: totals.efectivo_bruto,
+            tarjeta_bruto: totals.tarjeta_bruto,
             gastos: totalGastos,
-            efectivo_final: efecBruto - totalGastos,
-            total_tickets: ticketsHoy.length
+            efectivo_final: totals.efectivo_bruto - totalGastos,
+            total_tickets: totals.total_tickets
           },
           incidencias_abiertas: data.incidents.filter(i => i.estatus !== 'resuelta').length,
           pendientes_abiertos: data.tasks.filter(t => !t.completada).length

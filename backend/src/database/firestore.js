@@ -6,21 +6,53 @@ let isInitialized = false;
 function initFirestore() {
   if (isInitialized) return;
 
-  const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
-  if (!serviceAccountJson) {
-    throw new Error('FIREBASE_SERVICE_ACCOUNT env variable not set');
+  // Attempt Firebase initialization
+  if (!admin.apps || !admin.apps.length) {
+    const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
+    if (serviceAccountJson) {
+      const serviceAccount = JSON.parse(
+        Buffer.from(serviceAccountJson, 'base64').toString('utf8')
+      );
+      admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+    } else {
+      // No service account provided – fall back to local JSON DB
+      const path = require('path');
+      const fs = require('fs');
+      const dataPath = path.resolve(__dirname, '../../data/db.json');
+      if (fs.existsSync(dataPath)) {
+        const raw = fs.readFileSync(dataPath, 'utf8');
+        const data = JSON.parse(raw);
+        db = {
+          collection: (col) => ({
+            async get() {
+              const docs = (data[col] || []).map((item, idx) => ({
+                data: () => item,
+                id: String(item.id || idx + 1)
+              }));
+              return { docs, empty: docs.length === 0 };
+            },
+            doc: (id) => ({
+              async get() {
+                const colData = data[col] || [];
+                const item = colData.find((d) => String(d.id) === id);
+                return { exists: !!item, data: () => item };
+              },
+              async set() { /* no‑op fallback */ },
+              async update() { /* no‑op fallback */ },
+              async delete() { /* no‑op fallback */ }
+            })
+          })
+        };
+        isInitialized = true;
+        console.log('✅ Fallback DB loaded from data/db.json');
+        return db;
+      }
+      // If no fallback file, initialize empty admin app (will likely fail later)
+      admin.initializeApp();
+    }
   }
 
-  const serviceAccount = JSON.parse(
-    Buffer.from(serviceAccountJson, 'base64').toString('utf8')
-  );
-
-  if (!admin.apps.length) {
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount)
-    });
-  }
-
+  // If Firebase initialized (or admin app created), use real Firestore
   db = admin.firestore();
   isInitialized = true;
   console.log('✅ Firestore conectado correctamente');

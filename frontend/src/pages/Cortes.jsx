@@ -408,6 +408,13 @@ export default function Cortes() {
                 <div><span className="text-gray-500">Efectivo contado:</span> <span className="font-semibold">{formatCurrency(selectedCut.efectivo_contado)}</span></div>
                 <div><span className="text-gray-500">Diferencia:</span> <span className={`font-semibold ${Math.abs(selectedCut.diferencia_efectivo || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>{formatCurrency(selectedCut.diferencia_efectivo)}</span></div>
               </div>
+              {selectedCut.observaciones && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mt-4 text-sm">
+                  <span className="font-semibold text-yellow-800">Observaciones:</span>
+                  <p className="text-yellow-900 mt-1">{selectedCut.observaciones}</p>
+                </div>
+              )}
+
               <div className="mt-4 flex gap-2">
                 <button onClick={() => window.print()} className="btn-primary flex items-center gap-2">
                   <Printer size={16} /> Imprimir Ticket de Corte

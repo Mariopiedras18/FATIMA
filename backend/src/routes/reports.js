@@ -5,7 +5,7 @@ const { auth } = require('../middleware/auth');
 
 router.get('/ventas', auth, async (req, res) => {
   try {
-    const { desde, hasta, turno, folio_desde, folio_hasta } = req.query;
+    const { desde, hasta, turno, folio_desde, folio_hasta, format } = req.query;
     let list = await getAll('ticket_records');
     if (desde) list = list.filter(t => t.fecha >= desde);
     if (hasta) list = list.filter(t => t.fecha <= hasta);
@@ -16,20 +16,30 @@ router.get('/ventas', auth, async (req, res) => {
     const grouped = {};
     list.forEach(t => {
       const key = `${t.fecha}_${t.turno}`;
-      if (!grouped[key]) grouped[key] = { fecha: t.fecha, turno: t.turno, tickets: 0, efectivo: 0, tarjeta: 0, combinado: 0, total: 0, folios: [] };
+      if (!grouped[key]) grouped[key] = { fecha: t.fecha, turno: t.turno, tickets: 0, efectivo: 0, tarjeta: 0, combinado: 0, total: 0 };
       grouped[key].tickets++;
       grouped[key].total += Number(t.monto_total || 0);
-      if (t.folio_4) grouped[key].folios.push(t.folio_4);
       if (t.forma_pago === 'efectivo') grouped[key].efectivo += Number(t.monto_total || 0);
       else if (t.forma_pago === 'tarjeta') grouped[key].tarjeta += Number(t.monto_total || 0);
-      else if (t.forma_pago === 'combinado') { grouped[key].combinado += Number(t.monto_total || 0); grouped[key].efectivo += Number(t.monto_efectivo || 0); grouped[key].tarjeta += Number(t.monto_tarjeta || 0); }
+      else if (t.forma_pago === 'combinado') {
+        grouped[key].combinado += Number(t.monto_total || 0);
+        grouped[key].efectivo += Number(t.monto_efectivo || 0);
+        grouped[key].tarjeta += Number(t.monto_tarjeta || 0);
+      }
     });
 
-    const result = Object.values(grouped).map(g => ({
-      ...g,
-      folio_min: g.folios.length ? Math.min(...g.folios.map(Number)) : '-',
-      folio_max: g.folios.length ? Math.max(...g.folios.map(Number)) : '-'
-    })).sort((a, b) => b.fecha.localeCompare(a.fecha) || b.turno.localeCompare(a.turno));
+    const result = Object.values(grouped).sort((a, b) => b.fecha.localeCompare(a.fecha) || b.turno.localeCompare(a.turno));
+
+    if (format === 'csv') {
+      const { Parser } = require('json2csv');
+      const fields = ['fecha', 'turno', 'tickets', 'efectivo', 'tarjeta', 'combinado', 'total', 'folio_min', 'folio_max'];
+      const parser = new Parser({ fields });
+      const csv = parser.parse(result);
+      res.header('Content-Type', 'text/csv');
+      res.attachment('ventas_export.csv');
+      return res.send(csv);
+    }
+
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: 'Error al obtener reporte de ventas' });
