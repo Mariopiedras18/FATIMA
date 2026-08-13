@@ -22,26 +22,114 @@ function initFirestore() {
       if (fs.existsSync(dataPath)) {
         const raw = fs.readFileSync(dataPath, 'utf8');
         const data = JSON.parse(raw);
+
+        function saveToFile() {
+          try { fs.writeFileSync(dataPath, JSON.stringify(data, null, 2), 'utf8'); } catch (e) { console.error('Error guardando db.json:', e.message); }
+        }
+
         db = {
-          collection: (col) => ({
-            async get() {
-              const docs = (data[col] || []).map((item, idx) => ({
-                data: () => item,
-                id: String(item.id || idx + 1)
-              }));
-              return { docs, empty: docs.length === 0 };
-            },
-            doc: (id) => ({
-              async get() {
-                const colData = data[col] || [];
-                const item = colData.find((d) => String(d.id) === id);
-                return { exists: !!item, data: () => item };
+          _data: data,
+          _save: saveToFile,
+          collection: (col) => {
+            const chainObj = {
+              _col: col,
+              _filters: [],
+              _orderField: null,
+              _orderDir: 'asc',
+              _limitN: null,
+              where(field, op, value) {
+                chainObj._filters.push({ field, op, value });
+                return chainObj;
               },
-              async set() { /* no‑op fallback */ },
-              async update() { /* no‑op fallback */ },
-              async delete() { /* no‑op fallback */ }
-            })
-          })
+              orderBy(field, dir) {
+                chainObj._orderField = field;
+                chainObj._orderDir = dir || 'asc';
+                return chainObj;
+              },
+              limit(n) {
+                chainObj._limitN = n;
+                return chainObj;
+              },
+              async get() {
+                if (!data[col]) data[col] = [];
+                let docs = [...data[col]];
+                for (const f of chainObj._filters) {
+                  docs = docs.filter(d => {
+                    if (f.op === '==') return d[f.field] === f.value;
+                    if (f.op === '!=') return d[f.field] !== f.value;
+                    if (f.op === '<') return d[f.field] < f.value;
+                    if (f.op === '<=') return d[f.field] <= f.value;
+                    if (f.op === '>') return d[f.field] > f.value;
+                    if (f.op === '>=') return d[f.field] >= f.value;
+                    return true;
+                  });
+                }
+                if (chainObj._orderField) {
+                  const dir = chainObj._orderDir === 'desc' ? -1 : 1;
+                  docs.sort((a, b) => ((a[chainObj._orderField] || 0) > (b[chainObj._orderField] || 0) ? dir : -dir));
+                }
+                if (chainObj._limitN !== null) docs = docs.slice(0, chainObj._limitN);
+                const result = docs.map((item, idx) => ({
+                  data: () => item,
+                  id: String(item.id || idx + 1)
+                }));
+                return { docs: result, empty: result.length === 0 };
+              },
+              doc(id) {
+                return {
+                  _col: col,
+                  _id: String(id),
+                  async get() {
+                    if (!data[col]) data[col] = [];
+                    const item = data[col].find((d) => String(d.id) === String(id));
+                    return { exists: !!item, data: () => item };
+                  },
+                  async set(docData) {
+                    if (!data[col]) data[col] = [];
+                    const idx = data[col].findIndex((d) => String(d.id) === String(id));
+                    if (idx >= 0) data[col][idx] = { ...data[col][idx], ...docData };
+                    else data[col].push(docData);
+                    saveToFile();
+                  },
+                  async update(updates) {
+                    if (!data[col]) data[col] = [];
+                    const idx = data[col].findIndex((d) => String(d.id) === String(id));
+                    if (idx >= 0) { data[col][idx] = { ...data[col][idx], ...updates }; saveToFile(); }
+                  },
+                  async delete() {
+                    if (!data[col]) data[col] = [];
+                    data[col] = data[col].filter((d) => String(d.id) !== String(id));
+                    saveToFile();
+                  }
+                };
+              }
+            };
+            return chainObj;
+          },
+          batch: () => {
+            const ops = [];
+            return {
+              update(ref, updates) {
+                ops.push({ col: ref._col, id: ref._id, updates });
+              },
+              set(ref, docData) {
+                ops.push({ col: ref._col, id: ref._id, docData, isSet: true });
+              },
+              async commit() {
+                for (const op of ops) {
+                  if (!data[op.col]) data[op.col] = [];
+                  const idx = data[op.col].findIndex(d => String(d.id) === String(op.id));
+                  if (op.isSet) {
+                    if (idx >= 0) data[op.col][idx] = { ...data[op.col][idx], ...op.docData };
+                    else data[op.col].push(op.docData);
+                  } else if (idx >= 0) {
+                    data[op.col][idx] = { ...data[op.col][idx], ...op.updates };
+                  }
+                }
+                saveToFile();
+              }
+            };
+          }
         };
         isInitialized = true;
         console.log('✅ Fallback DB loaded from data/db.json');
