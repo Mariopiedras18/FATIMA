@@ -81,6 +81,18 @@ export default function Reportes() {
         (r.total || 0).toFixed(2)
       ]);
       csvContent = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+    } else if (activeTab === 'cortes') {
+      const headers = ['Fecha', 'Turno', 'Efectivo ($)', 'Tarjeta ($)'];
+      const rows = data.map(r => [
+        r.fecha,
+        r.turno === 'manana' ? 'Mañana' : 'Tarde',
+        (r.total_efectivo_bruto || 0).toFixed(2),
+        (r.total_tarjeta || 0).toFixed(2)
+      ]);
+      const totalEfectivo = data.reduce((s, r) => s + Number(r.total_efectivo_bruto || 0), 0);
+      const totalTarjeta = data.reduce((s, r) => s + Number(r.total_tarjeta || 0), 0);
+      rows.push(['TOTAL', '', totalEfectivo.toFixed(2), totalTarjeta.toFixed(2)]);
+      csvContent = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
     } else {
       const headers = Object.keys(data[0]).filter(k => !k.includes('id') && typeof data[0][k] !== 'object').join(',');
       const rows = data.map(row => Object.entries(row).filter(([k, v]) => !k.includes('id') && typeof v !== 'object').map(([, v]) => `"${v}"`).join(',')).join('\n');
