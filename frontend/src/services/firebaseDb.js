@@ -662,11 +662,11 @@ export const firebaseDb = {
 
       if (params.detalle === 'true' || params.detalle === true) {
         const users = data.users || [];
-        const userMap = Object.fromEntries(users.map(u => [u.id, u.nombre]));
+        const userMap = Object.fromEntries(users.map(u => [String(u.id), u.nombre]));
         const resultDetailed = list.map(t => ({
           ...t,
-          registrado_por_nombre: userMap[t.registrado_por] || null
-        })).sort((a, b) => b.fecha.localeCompare(a.fecha) || (b.turno || '').localeCompare(b.turno || ''));
+          registrado_por_nombre: t.registrado_por_nombre || userMap[String(t.registrado_por)] || null
+        })).sort((a, b) => b.fecha.localeCompare(a.fecha) || (b.turno || '').localeCompare(a.turno || ''));
         return { data: resultDetailed };
       }
 
