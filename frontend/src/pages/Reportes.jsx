@@ -530,7 +530,7 @@ export default function Reportes() {
             </div>
           ) : (
             <div>
-            {(activeTab === 'ventas' || activeTab === 'detalle_ventas') && (
+            {activeTab === 'ventas' && (
                 <table className="w-full">
                   <thead>
                     <tr className="table-header">
