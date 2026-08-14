@@ -40,7 +40,7 @@ router.get('/ventas', auth, async (req, res) => {
       }
     });
 
-    const result = Object.values(grouped).sort((a, b) => b.fecha.localeCompare(a.fecha) || b.turno.localeCompare(a.turno));
+    const result = Object.values(grouped).filter(g => g.total > 0).sort((a, b) => b.fecha.localeCompare(a.fecha) || b.turno.localeCompare(a.turno));
 
     if (format === 'csv') {
       const { Parser } = require('json2csv');
