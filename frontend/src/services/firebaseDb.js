@@ -658,6 +658,8 @@ export const firebaseDb = {
       if (params.folio_desde) list = list.filter(t => t.folio_4 && Number(t.folio_4) >= Number(params.folio_desde));
       if (params.folio_hasta) list = list.filter(t => t.folio_4 && Number(t.folio_4) <= Number(params.folio_hasta));
 
+      list = list.filter(t => t.monto_total && Number(t.monto_total) > 0);
+
       if (params.detalle === 'true' || params.detalle === true) {
         const users = data.users || [];
         const userMap = Object.fromEntries(users.map(u => [u.id, u.nombre]));
@@ -683,7 +685,7 @@ export const firebaseDb = {
         }
       });
 
-      const result = Object.values(grouped).sort((a, b) => b.fecha.localeCompare(a.fecha) || b.turno.localeCompare(a.turno));
+      const result = Object.values(grouped).filter(g => g.total > 0).sort((a, b) => b.fecha.localeCompare(a.fecha) || b.turno.localeCompare(a.turno));
       return { data: result };
     },
     cortes: async (params = {}) => {

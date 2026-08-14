@@ -13,6 +13,8 @@ router.get('/ventas', auth, async (req, res) => {
     if (folio_desde) list = list.filter(t => t.folio_4 && Number(t.folio_4) >= Number(folio_desde));
     if (folio_hasta) list = list.filter(t => t.folio_4 && Number(t.folio_4) <= Number(folio_hasta));
 
+    list = list.filter(t => t.monto_total && Number(t.monto_total) > 0);
+
     if (detalle === 'true') {
       const users = await getAll('users');
       const userMap = Object.fromEntries(users.map(u => [u.id, u.nombre]));
