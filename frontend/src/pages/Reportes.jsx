@@ -50,12 +50,12 @@ export default function Reportes() {
 
       let result;
       switch (activeTab) {
-        case 'ventas': result = await reports.ventas(params); break;
+        case 'ventas': result = await reports.ventas({ ...params, detalle: 'true' }); break;
         case 'detalle_ventas': result = await reports.ventas({ ...params, detalle: 'true' }); break;
         case 'cortes': result = await reports.cortes(params); break;
         case 'gastos': result = await reports.gastos(params); break;
         case 'incidencias': result = await reports.incidencias(params); break;
-        default: result = await reports.ventas(params);
+        default: result = await reports.ventas({ ...params, detalle: 'true' });
       }
       const filteredData = activeTab === 'detalle_ventas'
         ? (result.data || []).filter(t => t.monto_total && Number(t.monto_total) > 0)
@@ -530,34 +530,7 @@ export default function Reportes() {
             </div>
           ) : (
             <div>
-            {activeTab === 'ventas' && (
-                <table className="w-full">
-                  <thead>
-                    <tr className="table-header">
-                      <th className="px-4 py-3">Fecha</th>
-                      <th className="px-4 py-3">Turno</th>
-                      <th className="px-4 py-3">Tickets</th>
-                      <th className="px-4 py-3">Efectivo</th>
-                      <th className="px-4 py-3">Tarjeta</th>
-                      <th className="px-4 py-3">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.map((r, i) => (
-                      <tr key={i} className="border-t border-gray-100">
-                        <td className="table-cell">{r.fecha}</td>
-                        <td className="table-cell capitalize">{r.turno === 'manana' ? 'Mañana' : 'Tarde'}</td>
-                        <td className="table-cell">{r.tickets}</td>
-                        <td className="table-cell text-green-600 font-medium">{formatCurrency(r.efectivo)}</td>
-                        <td className="table-cell text-blue-600 font-medium">{formatCurrency(r.tarjeta)}</td>
-                        <td className="table-cell font-semibold">{formatCurrency(r.total)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-
-              {activeTab === 'detalle_ventas' && (
+            {(activeTab === 'ventas' || activeTab === 'detalle_ventas') && (
                 <table className="w-full">
                   <thead>
                     <tr className="table-header">
