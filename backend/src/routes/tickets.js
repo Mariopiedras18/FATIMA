@@ -12,8 +12,8 @@ router.get('/', auth, async (req, res) => {
     list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
     const users = await getAll('users');
-    const userMap = Object.fromEntries(users.map(u => [u.id, u.nombre]));
-    res.json(list.map(t => ({ ...t, registrado_por_nombre: userMap[t.registrado_por] || null })));
+    const userMap = Object.fromEntries(users.map(u => [String(u.id), u.nombre]));
+    res.json(list.map(t => ({ ...t, registrado_por_nombre: t.registrado_por_nombre || userMap[String(t.registrado_por)] || null })));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error al obtener tickets' });
@@ -96,6 +96,7 @@ router.post('/', auth, async (req, res) => {
       fecha,
       turno,
       registrado_por: req.user.id,
+      registrado_por_nombre: req.user.nombre || null,
       folio_4,
       monto_total: parsedMontoTotal,
       forma_pago,

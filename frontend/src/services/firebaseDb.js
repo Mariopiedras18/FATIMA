@@ -277,7 +277,9 @@ export const firebaseDb = {
       let list = [...data.ticket_records];
       if (params.fecha) list = list.filter(t => t.fecha === params.fecha);
       if (params.turno) list = list.filter(t => t.turno === params.turno);
-      return { data: list };
+      const users = data.users || [];
+      const userMap = Object.fromEntries(users.map(u => [String(u.id), u.nombre]));
+      return { data: list.map(t => ({ ...t, registrado_por_nombre: t.registrado_por_nombre || userMap[String(t.registrado_por)] || null })) };
     },
     getTotals: async (params = {}) => {
       const data = await getCloudData();
@@ -296,8 +298,9 @@ export const firebaseDb = {
     },
     create: async (ticketData) => {
       const data = await getCloudData();
+      const savedUser = JSON.parse(localStorage.getItem('user') || '{}');
       const newId = data.ticket_records.length > 0 ? Math.max(...data.ticket_records.map(t => t.id)) + 1 : 1;
-      const record = normalizeTicket(ticketData, newId);
+      const record = normalizeTicket({ ...ticketData, registrado_por: savedUser.id || 1, registrado_por_nombre: savedUser.nombre || 'Usuario' }, newId);
       data.ticket_records.push(record);
       await saveCloudData(data);
       return { data: record };

@@ -187,11 +187,14 @@ export default function Tickets() {
                   </td>
                   <td className="table-cell text-gray-500">{t.registrado_por_nombre}</td>
                   <td className="table-cell">
-                    {!t.corte_id && (
-                      <button onClick={() => handleDelete(t.id)} className="text-red-500 hover:text-red-700">
-                        <Trash2 size={16} />
-                      </button>
-                    )}
+                    <button
+                      onClick={() => handleDelete(t.id)}
+                      disabled={!!t.corte_id}
+                      title={t.corte_id ? 'Este ticket ya fue incluido en un corte' : 'Eliminar ticket'}
+                      className={`${t.corte_id ? 'text-gray-300 cursor-not-allowed' : 'text-red-500 hover:text-red-700'}`}
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </td>
                 </tr>
               ))}
