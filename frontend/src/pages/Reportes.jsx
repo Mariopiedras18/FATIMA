@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { reports } from '../services/api';
 import { FileText, Download, TrendingUp, DollarSign, Wallet, CreditCard, PieChart as ChartIcon, Calendar } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import {
   BarChart,
   Bar,
@@ -50,6 +51,7 @@ export default function Reportes() {
       let result;
       switch (activeTab) {
         case 'ventas': result = await reports.ventas(params); break;
+        case 'detalle_ventas': result = await reports.ventas({ ...params, detalle: 'true' }); break;
         case 'cortes': result = await reports.cortes(params); break;
         case 'gastos': result = await reports.gastos(params); break;
         case 'incidencias': result = await reports.incidencias(params); break;
@@ -144,8 +146,66 @@ export default function Reportes() {
     a.click();
   };
 
+  const exportExcel = () => {
+    if (!data.length) return;
+
+    const wsData = [];
+
+    if (activeTab === 'detalle_ventas') {
+      wsData.push(['Fecha', 'Turno', 'Folio', 'Forma de Pago', 'Monto ($)', 'Efectivo ($)', 'Tarjeta ($)', 'Registró', 'Observaciones']);
+      data.forEach(t => {
+        let formaPago = t.forma_pago || '';
+        if (formaPago === 'efectivo') formaPago = 'Efectivo';
+        else if (formaPago === 'tarjeta') formaPago = 'Tarjeta';
+        else if (formaPago === 'combinado') formaPago = 'Combinado';
+        else if (formaPago === 'consumo_propio') formaPago = 'Consumo Propio';
+        wsData.push([
+          t.fecha,
+          t.turno === 'manana' ? 'Mañana' : 'Tarde',
+          t.folio_4 || '',
+          formaPago,
+          Number(t.monto_total || 0),
+          Number(t.monto_efectivo || 0),
+          Number(t.monto_tarjeta || 0),
+          t.registrado_por_nombre || '',
+          t.observaciones || ''
+        ]);
+      });
+      wsData.push([]);
+      wsData.push(['TOTAL', '', '', '', data.reduce((s, t) => s + Number(t.monto_total || 0), 0), data.reduce((s, t) => s + Number(t.monto_efectivo || 0), 0), data.reduce((s, t) => s + Number(t.monto_tarjeta || 0), 0), '', '']);
+    } else if (activeTab === 'ventas') {
+      wsData.push(['Fecha', 'Turno', 'Tickets', 'Efectivo ($)', 'Tarjeta ($)', 'Total ($)']);
+      data.forEach(r => {
+        wsData.push([r.fecha, r.turno === 'manana' ? 'Mañana' : 'Tarde', r.tickets, Number(r.efectivo || 0), Number(r.tarjeta || 0), Number(r.total || 0)]);
+      });
+      wsData.push([]);
+      wsData.push(['TOTAL', '', data.reduce((s, r) => s + Number(r.tickets || 0), 0), data.reduce((s, r) => s + Number(r.efectivo || 0), 0), data.reduce((s, r) => s + Number(r.tarjeta || 0), 0), data.reduce((s, r) => s + Number(r.total || 0), 0)]);
+    } else if (activeTab === 'cortes') {
+      wsData.push(['Fecha', 'Turno', 'Efectivo Caja ($)', 'Tarjeta Terminal ($)', 'Gastos ($)', 'Efectivo Final ($)', 'Diferencia ($)', 'Estatus']);
+      data.forEach(r => {
+        wsData.push([r.fecha, r.turno === 'manana' ? 'Mañana' : 'Tarde', Number(r.total_efectivo_bruto || 0), Number(r.total_tarjeta || 0), Number(r.total_gastos || 0), Number(r.total_final || 0), Number(r.diferencia_efectivo || 0), r.estatus]);
+      });
+    } else if (activeTab === 'gastos') {
+      wsData.push(['Fecha', 'Turno', 'Concepto', 'Monto ($)', 'Registró']);
+      data.forEach(r => {
+        wsData.push([r.fecha, r.turno === 'manana' ? 'Mañana' : 'Tarde', r.concepto, Number(r.monto || 0), r.registrado_por_nombre]);
+      });
+    } else if (activeTab === 'incidencias') {
+      wsData.push(['Fecha', 'Tipo', 'Descripción', 'Prioridad', 'Responsable', 'Estatus']);
+      data.forEach(r => {
+        wsData.push([r.fecha, r.tipo || '', r.descripcion || '', r.prioridad || '', r.responsable_nombre || '', r.estatus || '']);
+      });
+    }
+
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Reporte');
+    XLSX.writeFile(wb, `reporte_${activeTab}_${filters.desde}_a_${filters.hasta}.xlsx`);
+  };
+
   const tabs = [
     { id: 'ventas', label: 'Ventas y Gráficos' },
+    { id: 'detalle_ventas', label: 'Detalle de Ventas' },
     { id: 'cortes', label: 'Cortes & Gastos' },
     { id: 'gastos', label: 'Gastos Detallados' },
     { id: 'incidencias', label: 'Incidencias' }
@@ -154,9 +214,15 @@ export default function Reportes() {
   const formatCurrency = (val) => `$${Number(val || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   // Cálculos estadísticos y agregaciones para los gráficos
-  const totalEfectivo = data.reduce((s, r) => s + Number(r.efectivo || r.total_efectivo_bruto || 0), 0);
-  const totalTarjeta = data.reduce((s, r) => s + Number(r.tarjeta || r.total_tarjeta || 0), 0);
-  const totalVendido = data.reduce((s, r) => s + Number(r.total || r.total_final || r.monto || 0), 0);
+  const totalEfectivo = activeTab === 'detalle_ventas'
+    ? data.reduce((s, t) => s + Number(t.monto_efectivo || (t.forma_pago === 'efectivo' ? t.monto_total : 0)), 0)
+    : data.reduce((s, r) => s + Number(r.efectivo || r.total_efectivo_bruto || 0), 0);
+  const totalTarjeta = activeTab === 'detalle_ventas'
+    ? data.reduce((s, t) => s + Number(t.monto_tarjeta || (t.forma_pago === 'tarjeta' ? t.monto_total : 0)), 0)
+    : data.reduce((s, r) => s + Number(r.tarjeta || r.total_tarjeta || 0), 0);
+  const totalVendido = activeTab === 'detalle_ventas'
+    ? data.reduce((s, t) => s + Number(t.monto_total || 0), 0)
+    : data.reduce((s, r) => s + Number(r.total || r.total_final || r.monto || 0), 0);
   const totalGastos = activeTab === 'cortes' ? data.reduce((s, r) => s + Number(r.total_gastos || 0), 0) : 0;
 
   // Formatear datos de ventas agrupándolos por semanas del mes
@@ -206,8 +272,8 @@ export default function Reportes() {
           <p className="text-gray-500 text-sm">Monitoreo de rendimiento comercial, gastos y cortes por periodo</p>
         </div>
         {data.length > 0 && (
-          <button onClick={exportCSV} className="btn-secondary flex items-center gap-2 shadow-sm">
-            <Download size={18} /> Exportar CSV
+          <button onClick={exportExcel} className="btn-secondary flex items-center gap-2 shadow-sm">
+            <Download size={18} /> Exportar Excel
           </button>
         )}
       </div>
@@ -461,7 +527,7 @@ export default function Reportes() {
             </div>
           ) : (
             <div>
-              {activeTab === 'ventas' && (
+            {(activeTab === 'ventas' || activeTab === 'detalle_ventas') && (
                 <table className="w-full">
                   <thead>
                     <tr className="table-header">
@@ -484,6 +550,44 @@ export default function Reportes() {
                         <td className="table-cell font-semibold">{formatCurrency(r.total)}</td>
                       </tr>
                     ))}
+                  </tbody>
+                </table>
+              )}
+
+              {activeTab === 'detalle_ventas' && (
+                <table className="w-full">
+                  <thead>
+                    <tr className="table-header">
+                      <th className="px-4 py-3">Fecha</th>
+                      <th className="px-4 py-3">Turno</th>
+                      <th className="px-4 py-3">Folio</th>
+                      <th className="px-4 py-3">Forma de Pago</th>
+                      <th className="px-4 py-3">Monto</th>
+                      <th className="px-4 py-3">Registró</th>
+                      <th className="px-4 py-3">Observaciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.map((t, i) => {
+                      let formaPago = t.forma_pago || '';
+                      let formaPagoBg = '';
+                      if (formaPago === 'efectivo') { formaPago = 'Efectivo'; formaPagoBg = 'bg-green-100 text-green-800'; }
+                      else if (formaPago === 'tarjeta') { formaPago = 'Tarjeta'; formaPagoBg = 'bg-blue-100 text-blue-800'; }
+                      else if (formaPago === 'combinado') { formaPago = 'Combinado'; formaPagoBg = 'bg-purple-100 text-purple-800'; }
+                      else if (formaPago === 'consumo_propio') { formaPago = 'Consumo Propio'; formaPagoBg = 'bg-yellow-100 text-yellow-800'; }
+
+                      return (
+                        <tr key={i} className="border-t border-gray-100 hover:bg-gray-50">
+                          <td className="table-cell">{t.fecha}</td>
+                          <td className="table-cell capitalize">{t.turno === 'manana' ? 'Mañana' : 'Tarde'}</td>
+                          <td className="table-cell font-mono font-bold">{t.folio_4 || '-'}</td>
+                          <td className="table-cell"><span className={`badge ${formaPagoBg}`}>{formaPago}</span></td>
+                          <td className="table-cell font-semibold">{formatCurrency(t.monto_total)}</td>
+                          <td className="table-cell text-gray-500">{t.registrado_por_nombre || '-'}</td>
+                          <td className="table-cell text-gray-500 max-w-xs truncate">{t.observaciones || '-'}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               )}

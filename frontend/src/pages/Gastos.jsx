@@ -40,7 +40,7 @@ export default function Gastos() {
     try { await expenses.delete(id); loadData(); } catch (err) { alert(err.response?.data?.error); }
   };
 
-  const total = list.reduce((sum, e) => sum + e.monto, 0);
+  const total = list.reduce((sum, e) => sum + Number(e.monto), 0);
 
   return (
     <div>
