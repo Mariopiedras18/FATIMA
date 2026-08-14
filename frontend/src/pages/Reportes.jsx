@@ -57,7 +57,10 @@ export default function Reportes() {
         case 'incidencias': result = await reports.incidencias(params); break;
         default: result = await reports.ventas(params);
       }
-      setData(result.data);
+      const filteredData = activeTab === 'detalle_ventas'
+        ? (result.data || []).filter(t => t.monto_total && Number(t.monto_total) > 0)
+        : result.data;
+      setData(filteredData);
     } catch (err) {
       console.error(err);
     } finally {
@@ -568,7 +571,7 @@ export default function Reportes() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.map((t, i) => {
+                    {data.filter(t => t.monto_total && Number(t.monto_total) > 0).map((t, i) => {
                       let formaPago = t.forma_pago || '';
                       let formaPagoBg = '';
                       if (formaPago === 'efectivo') { formaPago = 'Efectivo'; formaPagoBg = 'bg-green-100 text-green-800'; }

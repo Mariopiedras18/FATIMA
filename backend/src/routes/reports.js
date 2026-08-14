@@ -16,10 +16,12 @@ router.get('/ventas', auth, async (req, res) => {
     if (detalle === 'true') {
       const users = await getAll('users');
       const userMap = Object.fromEntries(users.map(u => [u.id, u.nombre]));
-      const resultDetailed = list.map(t => ({
-        ...t,
-        registrado_por_nombre: userMap[t.registrado_por] || null
-      })).sort((a, b) => b.fecha.localeCompare(a.fecha) || (b.turno || '').localeCompare(a.turno || ''));
+      const resultDetailed = list
+        .filter(t => t.monto_total && Number(t.monto_total) > 0)
+        .map(t => ({
+          ...t,
+          registrado_por_nombre: userMap[t.registrado_por] || null
+        })).sort((a, b) => b.fecha.localeCompare(a.fecha) || (b.turno || '').localeCompare(a.turno || ''));
       return res.json(resultDetailed);
     }
 
