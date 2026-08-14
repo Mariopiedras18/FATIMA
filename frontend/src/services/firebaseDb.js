@@ -310,6 +310,17 @@ export const firebaseDb = {
       data.ticket_records = data.ticket_records.filter(t => t.id !== parseInt(id));
       await saveCloudData(data);
       return { data: { message: 'Ticket eliminado' } };
+    },
+    update: async (id, ticketData) => {
+      const data = await getCloudData();
+      const idx = data.ticket_records.findIndex(t => t.id === parseInt(id));
+      if (idx < 0) throw createErrorResponse('Ticket no encontrado', 404);
+      if (data.ticket_records[idx].corte_id) throw createErrorResponse('No se puede editar, ya está en un corte cerrado', 400);
+      const original = data.ticket_records[idx];
+      const updated = normalizeTicket({ ...ticketData, registrado_por: original.registrado_por, registrado_por_nombre: original.registrado_por_nombre }, original.id);
+      data.ticket_records[idx] = { ...original, ...updated, created_at: original.created_at, updated_at: new Date().toISOString() };
+      await saveCloudData(data);
+      return { data: data.ticket_records[idx] };
     }
   },
 

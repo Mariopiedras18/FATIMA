@@ -116,6 +116,62 @@ router.post('/', auth, async (req, res) => {
   }
 });
 
+router.put('/:id', auth, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const ticket = await getById('ticket_records', id);
+    if (!ticket) return res.status(404).json({ error: 'Ticket no encontrado' });
+    if (ticket.corte_id) return res.status(400).json({ error: 'No se puede editar, ya está en un corte cerrado' });
+
+    const { fecha, turno, folio_4, monto_total, forma_pago, monto_efectivo, monto_tarjeta, observaciones } = req.body;
+    if (!fecha || !turno || !folio_4 || !monto_total || !forma_pago) {
+      return res.status(400).json({ error: 'Fecha, turno, folio, monto y forma de pago son requeridos' });
+    }
+    if (folio_4.length !== 4 || !/^\d+$/.test(folio_4)) {
+      return res.status(400).json({ error: 'Los últimos 4 dígitos deben ser numéricos' });
+    }
+    if (Number(monto_total) <= 0) {
+      return res.status(400).json({ error: 'El monto debe ser mayor a cero' });
+    }
+    if (forma_pago === 'combinado') {
+      if (!monto_efectivo || !monto_tarjeta) return res.status(400).json({ error: 'En combinado se requiere monto efectivo y monto tarjeta' });
+      if (Math.abs((Number(monto_efectivo) + Number(monto_tarjeta)) - Number(monto_total)) > 0.01) {
+        return res.status(400).json({ error: 'La suma de efectivo y tarjeta debe ser igual al monto total' });
+      }
+    }
+
+    const parsedMontoTotal = Number(monto_total);
+    const parsedMontoEfectivo = Number(monto_efectivo || 0);
+    const parsedMontoTarjeta = Number(monto_tarjeta || 0);
+
+    let efectivo = 0, tarjeta = 0, consumoPropio = 0;
+    if (forma_pago === 'efectivo') efectivo = parsedMontoTotal;
+    else if (forma_pago === 'tarjeta') tarjeta = parsedMontoTotal;
+    else if (forma_pago === 'combinado') { efectivo = parsedMontoEfectivo; tarjeta = parsedMontoTarjeta; }
+    else if (forma_pago === 'consumo_propio') consumoPropio = parsedMontoTotal;
+
+    const updated = {
+      ...ticket,
+      fecha,
+      turno,
+      folio_4,
+      monto_total: parsedMontoTotal,
+      forma_pago,
+      monto_efectivo: efectivo,
+      monto_tarjeta: tarjeta,
+      monto_consumo_propio: consumoPropio,
+      observaciones: observaciones || null,
+      updated_at: new Date().toISOString()
+    };
+
+    await addDoc('ticket_records', updated);
+    res.json(updated);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al editar ticket' });
+  }
+});
+
 router.delete('/:id', auth, async (req, res) => {
   try {
     const id = parseInt(req.params.id);

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { tickets } from '../services/api';
-import { Plus, Trash2, Search } from 'lucide-react';
+import { Plus, Trash2, Search, Pencil, X } from 'lucide-react';
 import { getTodayLocalDate } from '../utils/dateUtils';
 
 export default function Tickets() {
@@ -8,6 +8,7 @@ export default function Tickets() {
   const [totals, setTotals] = useState({});
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({
     fecha: getTodayLocalDate(),
     turno: 'manana',
@@ -47,7 +48,12 @@ export default function Tickets() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await tickets.create(form);
+      if (editing) {
+        await tickets.update(editing.id, form);
+        setEditing(null);
+      } else {
+        await tickets.create(form);
+      }
       setForm({ ...form, folio_4: '', monto_total: '', monto_efectivo: '', monto_tarjeta: '', observaciones: '' });
       setShowForm(false);
       loadData();
@@ -66,6 +72,28 @@ export default function Tickets() {
     }
   };
 
+  const startEdit = (t) => {
+    setEditing({ id: t.id });
+    setForm({
+      fecha: t.fecha,
+      turno: t.turno,
+      folio_4: t.folio_4 || '',
+      monto_total: t.monto_total || '',
+      forma_pago: t.forma_pago || 'efectivo',
+      monto_efectivo: t.monto_efectivo || '',
+      monto_tarjeta: t.monto_tarjeta || '',
+      observaciones: t.observaciones || ''
+    });
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const cancelEdit = () => {
+    setEditing(null);
+    setShowForm(false);
+    setForm({ ...form, folio_4: '', monto_total: '', monto_efectivo: '', monto_tarjeta: '', observaciones: '' });
+  };
+
   const formaPagoLabel = { efectivo: 'Efectivo', tarjeta: 'Tarjeta', combinado: 'Combinado', consumo_propio: 'Consumo Propio (Personal)' };
   const formaPagoBadge = { efectivo: 'badge-success', tarjeta: 'badge-info', combinado: 'badge-warning', consumo_propio: 'bg-purple-100 text-purple-800 font-semibold px-2 py-0.5 rounded text-xs' };
 
@@ -76,7 +104,7 @@ export default function Tickets() {
           <h2 className="text-2xl font-bold text-gray-800">Registro Diario</h2>
           <p className="text-gray-500 text-sm">Captura de tickets por turno</p>
         </div>
-        <button onClick={() => setShowForm(!showForm)} className="btn-primary flex items-center gap-2">
+        <button onClick={() => { setEditing(null); setForm({ ...form, folio_4: '', monto_total: '', monto_efectivo: '', monto_tarjeta: '', observaciones: '' }); setShowForm(!showForm); }} className="btn-primary flex items-center gap-2">
           <Plus size={18} /> Nuevo Ticket
         </button>
       </div>
@@ -97,8 +125,22 @@ export default function Tickets() {
 
       {showForm && (
         <div className="card mb-6">
-          <h3 className="text-lg font-semibold mb-4">Nuevo Ticket</h3>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold">{editing ? `Editar Ticket #${editing.id}` : 'Nuevo Ticket'}</h3>
+            <button onClick={cancelEdit} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+          </div>
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="label">Fecha</label>
+              <input type="date" value={form.fecha} onChange={(e) => setForm({ ...form, fecha: e.target.value })} className="input-field" required />
+            </div>
+            <div>
+              <label className="label">Turno</label>
+              <select value={form.turno} onChange={(e) => setForm({ ...form, turno: e.target.value })} className="input-field">
+                <option value="manana">Mañana</option>
+                <option value="tarde">Tarde</option>
+              </select>
+            </div>
             <div>
               <label className="label">Folio (últimos 4 dígitos)</label>
               <input type="text" maxLength={4} pattern="\d{4}" value={form.folio_4} onChange={(e) => setForm({ ...form, folio_4: e.target.value })} className="input-field" placeholder="1234" required />
@@ -133,8 +175,8 @@ export default function Tickets() {
               <input type="text" value={form.observaciones} onChange={(e) => setForm({ ...form, observaciones: e.target.value })} className="input-field" placeholder="Opcional (ej: Desayuno encargado)" />
             </div>
             <div className="md:col-span-2 flex gap-3">
-              <button type="submit" className="btn-primary">Guardar</button>
-              <button type="button" onClick={() => setShowForm(false)} className="btn-secondary">Cancelar</button>
+              <button type="submit" className="btn-primary">{editing ? 'Guardar Cambios' : 'Guardar'}</button>
+              <button type="button" onClick={cancelEdit} className="btn-secondary">Cancelar</button>
             </div>
           </form>
         </div>
@@ -188,10 +230,18 @@ export default function Tickets() {
                   <td className="table-cell text-gray-500">{t.registrado_por_nombre}</td>
                   <td className="table-cell">
                     <button
+                      onClick={() => startEdit(t)}
+                      disabled={!!t.corte_id}
+                      title={t.corte_id ? 'Este ticket ya fue incluido en un corte' : 'Editar ticket'}
+                      className={`${t.corte_id ? 'text-gray-300 cursor-not-allowed' : 'text-blue-500 hover:text-blue-700'}`}
+                    >
+                      <Pencil size={16} />
+                    </button>
+                    <button
                       onClick={() => handleDelete(t.id)}
                       disabled={!!t.corte_id}
                       title={t.corte_id ? 'Este ticket ya fue incluido en un corte' : 'Eliminar ticket'}
-                      className={`${t.corte_id ? 'text-gray-300 cursor-not-allowed' : 'text-red-500 hover:text-red-700'}`}
+                      className={`ml-3 ${t.corte_id ? 'text-gray-300 cursor-not-allowed' : 'text-red-500 hover:text-red-700'}`}
                     >
                       <Trash2 size={16} />
                     </button>

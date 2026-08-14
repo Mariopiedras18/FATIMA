@@ -61,6 +61,7 @@ export const tickets = {
   getAll: (params) => withFallback(() => API.get('/tickets', { params }), () => firebaseDb.tickets.getAll(params)),
   getTotals: (params) => withFallback(() => API.get('/tickets/totals', { params }), () => firebaseDb.tickets.getTotals(params)),
   create: (data) => withFallback(() => API.post('/tickets', data), () => firebaseDb.tickets.create(data)),
+  update: (id, data) => withFallback(() => API.put(`/tickets/${id}`, data), () => firebaseDb.tickets.update(id, data)),
   delete: (id) => withFallback(() => API.delete(`/tickets/${id}`), () => firebaseDb.tickets.delete(id)),
 };
 

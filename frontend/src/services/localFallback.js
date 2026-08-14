@@ -229,7 +229,9 @@ export const localFallback = {
       let list = [...db.ticket_records];
       if (params.fecha) list = list.filter(t => t.fecha === params.fecha);
       if (params.turno) list = list.filter(t => t.turno === params.turno);
-      return { data: list };
+      const users = db.users || [];
+      const userMap = Object.fromEntries(users.map(u => [String(u.id), u.nombre]));
+      return { data: list.map(t => ({ ...t, registrado_por_nombre: t.registrado_por_nombre || userMap[String(t.registrado_por)] || null })) };
     },
     getTotals: async (params = {}) => {
       const db = getLocalData();
@@ -259,6 +261,17 @@ export const localFallback = {
       db.ticket_records = db.ticket_records.filter(t => t.id !== parseInt(id));
       saveLocalData(db);
       return { data: { message: 'Ticket eliminado' } };
+    },
+    update: async (id, data) => {
+      const db = getLocalData();
+      const idx = db.ticket_records.findIndex(t => t.id === parseInt(id));
+      if (idx < 0) throw createErrorResponse('Ticket no encontrado', 404);
+      if (db.ticket_records[idx].corte_id) throw createErrorResponse('No se puede editar, ya está en un corte cerrado', 400);
+      const original = db.ticket_records[idx];
+      const updated = normalizeTicket({ ...data, registrado_por: original.registrado_por, registrado_por_nombre: original.registrado_por_nombre }, original.id);
+      db.ticket_records[idx] = { ...original, ...updated, created_at: original.created_at, updated_at: new Date().toISOString() };
+      saveLocalData(db);
+      return { data: db.ticket_records[idx] };
     }
   },
 
