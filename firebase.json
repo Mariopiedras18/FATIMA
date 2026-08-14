@@ -21,7 +21,7 @@
     "rewrites": [
       {
         "source": "/api/**",
-        "destination": "https://<YOUR_VERCEL_SUBDOMAIN>.vercel.app/api/**"
+        "destination": "https://fatima-1-08wu.onrender.com/api/**"
       },
       {
         "source": "**",

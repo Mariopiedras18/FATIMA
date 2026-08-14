@@ -5,13 +5,23 @@ const { auth } = require('../middleware/auth');
 
 router.get('/ventas', auth, async (req, res) => {
   try {
-    const { desde, hasta, turno, folio_desde, folio_hasta, format } = req.query;
+    const { desde, hasta, turno, folio_desde, folio_hasta, format, detalle } = req.query;
     let list = await getAll('ticket_records');
     if (desde) list = list.filter(t => t.fecha >= desde);
     if (hasta) list = list.filter(t => t.fecha <= hasta);
     if (turno) list = list.filter(t => t.turno === turno);
     if (folio_desde) list = list.filter(t => t.folio_4 && Number(t.folio_4) >= Number(folio_desde));
     if (folio_hasta) list = list.filter(t => t.folio_4 && Number(t.folio_4) <= Number(folio_hasta));
+
+    if (detalle === 'true') {
+      const users = await getAll('users');
+      const userMap = Object.fromEntries(users.map(u => [u.id, u.nombre]));
+      const resultDetailed = list.map(t => ({
+        ...t,
+        registrado_por_nombre: userMap[t.registrado_por] || null
+      })).sort((a, b) => b.fecha.localeCompare(a.fecha) || (b.turno || '').localeCompare(a.turno || ''));
+      return res.json(resultDetailed);
+    }
 
     const grouped = {};
     list.forEach(t => {

@@ -44,6 +44,64 @@ function createErrorResponse(message, status = 400) {
   return err;
 }
 
+const toAmount = (value) => {
+  const amount = Number(value || 0);
+  return Number.isFinite(amount) ? amount : 0;
+};
+
+function summarizeTickets(tickets = []) {
+  return tickets.reduce((totals, ticket) => {
+    const forma = (ticket.forma_pago || '').toLowerCase();
+    const montoTotal = toAmount(ticket.monto_total);
+
+    totals.total_tickets += 1;
+    if (forma === 'efectivo') {
+      totals.efectivo_bruto += montoTotal;
+    } else if (forma === 'tarjeta') {
+      totals.tarjeta_bruto += montoTotal;
+    } else if (forma === 'consumo_propio') {
+      totals.consumo_propio += toAmount(ticket.monto_consumo_propio || montoTotal);
+    } else if (forma === 'combinado') {
+      totals.efectivo_bruto += toAmount(ticket.monto_efectivo);
+      totals.tarjeta_bruto += toAmount(ticket.monto_tarjeta);
+    }
+
+    return totals;
+  }, {
+    total_tickets: 0,
+    efectivo_bruto: 0,
+    tarjeta_bruto: 0,
+    consumo_propio: 0
+  });
+}
+
+function normalizeTicket(ticketData, id) {
+  const formaPago = ticketData.forma_pago;
+  const montoTotal = toAmount(ticketData.monto_total);
+  let montoEfectivo = 0;
+  let montoTarjeta = 0;
+  let montoConsumoPropio = 0;
+
+  if (formaPago === 'efectivo') montoEfectivo = montoTotal;
+  if (formaPago === 'tarjeta') montoTarjeta = montoTotal;
+  if (formaPago === 'consumo_propio') montoConsumoPropio = montoTotal;
+  if (formaPago === 'combinado') {
+    montoEfectivo = toAmount(ticketData.monto_efectivo);
+    montoTarjeta = toAmount(ticketData.monto_tarjeta);
+  }
+
+  return {
+    ...ticketData,
+    id,
+    monto_total: montoTotal,
+    monto_efectivo: montoEfectivo,
+    monto_tarjeta: montoTarjeta,
+    monto_consumo_propio: montoConsumoPropio,
+    corte_id: ticketData.corte_id || null,
+    created_at: new Date().toISOString()
+  };
+}
+
 const ROLL_LIMPIEZA_DE_CAJON = {
   1: { // Lunes
     manana: ['Puertas y ventanas', 'Lavar botes de basura', 'Lavar baño'],
@@ -179,17 +237,19 @@ export const localFallback = {
       if (params.fecha) list = list.filter(t => t.fecha === params.fecha);
       if (params.turno) list = list.filter(t => t.turno === params.turno);
       
-      const total_efectivo = list.filter(t => t.forma_pago === 'efectivo').reduce((s, t) => s + (t.monto_total || 0), 0) +
-                             list.filter(t => t.forma_pago === 'combinado').reduce((s, t) => s + (t.monto_efectivo || 0), 0);
-      const total_tarjeta = list.filter(t => t.forma_pago === 'tarjeta').reduce((s, t) => s + (t.monto_total || 0), 0) +
-                            list.filter(t => t.forma_pago === 'combinado').reduce((s, t) => s + (t.monto_tarjeta || 0), 0);
-      const total_vendido = list.reduce((s, t) => s + (t.monto_total || 0), 0);
-      return { data: { total_efectivo, total_tarjeta, total_vendido, count: list.length } };
+      const totals = summarizeTickets(list);
+      return {
+        data: {
+          ...totals,
+          total_consumo_propio: totals.consumo_propio,
+          total_vendido: totals.efectivo_bruto + totals.tarjeta_bruto + totals.consumo_propio
+        }
+      };
     },
     create: async (data) => {
       const db = getLocalData();
       const newId = db.ticket_records.length > 0 ? Math.max(...db.ticket_records.map(t => t.id)) + 1 : 1;
-      const record = { id: newId, ...data, created_at: new Date().toISOString() };
+      const record = normalizeTicket(data, newId);
       db.ticket_records.push(record);
       saveLocalData(db);
       return { data: record };
@@ -214,20 +274,66 @@ export const localFallback = {
     },
     preview: async (data) => {
       const db = getLocalData();
-      const tickets = db.ticket_records.filter(t => t.fecha === data.fecha && t.turno === data.turno);
-      const expenses = db.branch_expenses.filter(e => e.fecha === data.fecha && e.turno === data.turno);
-      const efectivo_bruto = tickets.filter(t => t.forma_pago === 'efectivo').reduce((s, t) => s + (t.monto_total || 0), 0) +
-                             tickets.filter(t => t.forma_pago === 'combinado').reduce((s, t) => s + (t.monto_efectivo || 0), 0);
-      const tarjeta = tickets.filter(t => t.forma_pago === 'tarjeta').reduce((s, t) => s + (t.monto_total || 0), 0) +
-                      tickets.filter(t => t.forma_pago === 'combinado').reduce((s, t) => s + (t.monto_tarjeta || 0), 0);
-      const gastos = expenses.reduce((s, e) => s + (e.monto || 0), 0);
-      const efectivo_esperado = efectivo_bruto - gastos;
-      return { data: { total_efectivo_bruto: efectivo_bruto, total_tarjeta: tarjeta, total_gastos: gastos, efectivo_esperado, total_vendido: efectivo_bruto + tarjeta, tickets_count: tickets.length } };
+      const tickets = db.ticket_records.filter(t => t.fecha === data.fecha && t.turno === data.turno && (!t.corte_id || t.corte_id === null));
+      const expenses = db.branch_expenses.filter(e => (!e.cash_cut_id || e.cash_cut_id === null) && e.fecha <= data.fecha && e.turno === data.turno);
+      const totals = summarizeTickets(tickets);
+      const total_gastos = expenses.reduce((s, e) => s + toAmount(e.monto), 0);
+      const efectivo_final = totals.efectivo_bruto - total_gastos;
+      return {
+        data: {
+          fecha: data.fecha,
+          turno: data.turno,
+          total_tickets: totals.total_tickets,
+          efectivo_bruto: totals.efectivo_bruto,
+          tarjeta_bruto: totals.tarjeta_bruto,
+          total_consumo_propio: totals.consumo_propio,
+          total_vendido: totals.efectivo_bruto + totals.tarjeta_bruto + totals.consumo_propio,
+          total_gastos,
+          efectivo_final,
+          total_final: efectivo_final + totals.tarjeta_bruto,
+          gastos_incluidos: expenses
+        }
+      };
     },
     create: async (data) => {
       const db = getLocalData();
+      const savedUser = JSON.parse(localStorage.getItem('user') || '{}');
       const newId = db.cash_cuts.length > 0 ? Math.max(...db.cash_cuts.map(c => c.id)) + 1 : 1;
-      const cut = { id: newId, ...data, created_at: new Date().toISOString() };
+      const nowISO = new Date().toISOString();
+      const tickets = db.ticket_records.filter(t => t.fecha === data.fecha && t.turno === data.turno && (!t.corte_id || t.corte_id === null));
+      const expenses = db.branch_expenses.filter(e => (!e.cash_cut_id || e.cash_cut_id === null) && e.fecha <= data.fecha && e.turno === data.turno);
+      const totals = summarizeTickets(tickets);
+      const total_gastos = expenses.reduce((s, e) => s + toAmount(e.monto), 0);
+      const efectivo_final = totals.efectivo_bruto - total_gastos;
+      const total_final = efectivo_final + totals.tarjeta_bruto;
+      const diferencia_efectivo = toAmount(data.efectivo_contado) - efectivo_final;
+      const diferencia_tarjeta = toAmount(data.tarjeta_terminal) - totals.tarjeta_bruto;
+      const estatus = (Math.abs(diferencia_efectivo) < 0.5 && Math.abs(diferencia_tarjeta) < 0.5) ? 'cerrado' : 'con_diferencia';
+      const cut = {
+        id: newId,
+        branch_id: 1,
+        fecha: data.fecha,
+        turno: data.turno,
+        responsable_id: savedUser.id || 1,
+        responsable_nombre: savedUser.nombre || 'Ana Garcia',
+        total_efectivo_bruto: totals.efectivo_bruto,
+        total_tarjeta: totals.tarjeta_bruto,
+        total_consumo_propio: totals.consumo_propio,
+        total_vendido: totals.efectivo_bruto + totals.tarjeta_bruto + totals.consumo_propio,
+        total_gastos,
+        efectivo_final,
+        total_final,
+        efectivo_contado: toAmount(data.efectivo_contado),
+        tarjeta_terminal: toAmount(data.tarjeta_terminal),
+        diferencia_efectivo,
+        diferencia_tarjeta,
+        estatus,
+        observaciones: data.observaciones || null,
+        closed_at: nowISO,
+        created_at: nowISO
+      };
+      tickets.forEach(t => { t.corte_id = newId; });
+      expenses.forEach(e => { e.cash_cut_id = newId; });
       db.cash_cuts.push(cut);
       saveLocalData(db);
       return { data: cut };
@@ -431,26 +537,24 @@ export const localFallback = {
   dashboard: {
     get: async () => {
       const db = getLocalData();
-      const hoy = new Date().toISOString().split('T')[0];
+      const dNow = new Date();
+      const hoy = `${dNow.getFullYear()}-${String(dNow.getMonth() + 1).padStart(2, '0')}-${String(dNow.getDate()).padStart(2, '0')}`;
       const ticketsHoy = db.ticket_records.filter(t => t.fecha === hoy);
       const gastosHoy = db.branch_expenses.filter(e => e.fecha === hoy);
 
-      const efecBruto = ticketsHoy.filter(t => t.forma_pago === 'efectivo').reduce((s, t) => s + (t.monto_total || 0), 0) +
-                        ticketsHoy.filter(t => t.forma_pago === 'combinado').reduce((s, t) => s + (t.monto_efectivo || 0), 0);
-      const tarjBruto = ticketsHoy.filter(t => t.forma_pago === 'tarjeta').reduce((s, t) => s + (t.monto_total || 0), 0) +
-                        ticketsHoy.filter(t => t.forma_pago === 'combinado').reduce((s, t) => s + (t.monto_tarjeta || 0), 0);
-      const totalGastos = gastosHoy.reduce((s, e) => s + (e.monto || 0), 0);
+      const totals = summarizeTickets(ticketsHoy);
+      const totalGastos = gastosHoy.reduce((s, e) => s + toAmount(e.monto), 0);
 
       return {
         data: {
           fecha: hoy,
           ventas: {
-            total_vendido: efecBruto + tarjBruto,
-            efectivo_bruto: efecBruto,
-            tarjeta_bruto: tarjBruto,
+            total_vendido: totals.efectivo_bruto + totals.tarjeta_bruto + totals.consumo_propio,
+            efectivo_bruto: totals.efectivo_bruto,
+            tarjeta_bruto: totals.tarjeta_bruto,
             gastos: totalGastos,
-            efectivo_final: efecBruto - totalGastos,
-            total_tickets: ticketsHoy.length
+            efectivo_final: totals.efectivo_bruto - totalGastos,
+            total_tickets: totals.total_tickets
           },
           incidencias_abiertas: db.incidents.filter(i => i.estatus !== 'resuelta').length,
           pendientes_abiertos: db.tasks.filter(t => !t.completada).length

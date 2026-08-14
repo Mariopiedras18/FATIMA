@@ -658,6 +658,16 @@ export const firebaseDb = {
       if (params.folio_desde) list = list.filter(t => t.folio_4 && Number(t.folio_4) >= Number(params.folio_desde));
       if (params.folio_hasta) list = list.filter(t => t.folio_4 && Number(t.folio_4) <= Number(params.folio_hasta));
 
+      if (params.detalle === 'true' || params.detalle === true) {
+        const users = data.users || [];
+        const userMap = Object.fromEntries(users.map(u => [u.id, u.nombre]));
+        const resultDetailed = list.map(t => ({
+          ...t,
+          registrado_por_nombre: userMap[t.registrado_por] || null
+        })).sort((a, b) => b.fecha.localeCompare(a.fecha) || (b.turno || '').localeCompare(b.turno || ''));
+        return { data: resultDetailed };
+      }
+
       const grouped = {};
       list.forEach(t => {
         const key = `${t.fecha}_${t.turno}`;

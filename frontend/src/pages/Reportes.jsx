@@ -67,21 +67,57 @@ export default function Reportes() {
     loadData();
   }, [activeTab]);
 
-  const exportCSV = () => {
-    if (!data.length) return;
+  const exportCSV = async () => {
     let csvContent = '';
 
     if (activeTab === 'ventas') {
-      const headers = ['Fecha', 'Turno', 'Efectivo ($)', 'Tarjeta ($)', 'Total Ingresos ($)'];
-      const rows = data.map(r => [
-        r.fecha,
-        r.turno === 'manana' ? 'Mañana' : 'Tarde',
-        (r.efectivo || 0).toFixed(2),
-        (r.tarjeta || 0).toFixed(2),
-        (r.total || 0).toFixed(2)
-      ]);
-      csvContent = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+      setLoading(true);
+      try {
+        const params = { desde: filters.desde, hasta: filters.hasta, detalle: 'true' };
+        if (filters.turno) params.turno = filters.turno;
+        if (filters.folio_desde) params.folio_desde = filters.folio_desde;
+        if (filters.folio_hasta) params.folio_hasta = filters.folio_hasta;
+
+        const result = await reports.ventas(params);
+        const detailedTickets = result.data || [];
+
+        if (!detailedTickets.length) {
+          alert('No hay datos para exportar');
+          setLoading(false);
+          return;
+        }
+
+        const headers = ['Fecha', 'Turno', 'Folio', 'Forma de Pago', 'Monto ($)', 'Registró', 'Observaciones'];
+        const rows = detailedTickets.map(t => {
+          let formaPagoStr = t.forma_pago || '';
+          if (formaPagoStr === 'efectivo') formaPagoStr = 'Efectivo';
+          else if (formaPagoStr === 'tarjeta') formaPagoStr = 'Tarjeta';
+          else if (formaPagoStr === 'combinado') formaPagoStr = 'Combinado';
+          else if (formaPagoStr === 'consumo_propio') formaPagoStr = 'Consumo Propio';
+
+          const obsClean = (t.observaciones || '').replace(/"/g, '""');
+
+          return [
+            t.fecha,
+            t.turno === 'manana' ? 'Mañana' : 'Tarde',
+            t.folio_4 || '',
+            formaPagoStr,
+            (t.monto_total || 0).toFixed(2),
+            t.registrado_por_nombre || '',
+            `"${obsClean}"`
+          ];
+        });
+        csvContent = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+      } catch (err) {
+        console.error(err);
+        alert('Error al exportar CSV');
+        setLoading(false);
+        return;
+      } finally {
+        setLoading(false);
+      }
     } else if (activeTab === 'cortes') {
+      if (!data.length) return;
       const headers = ['Fecha', 'Turno', 'Efectivo ($)', 'Tarjeta ($)'];
       const rows = data.map(r => [
         r.fecha,
@@ -94,6 +130,7 @@ export default function Reportes() {
       rows.push(['TOTAL', '', totalEfectivo.toFixed(2), totalTarjeta.toFixed(2)]);
       csvContent = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
     } else {
+      if (!data.length) return;
       const headers = Object.keys(data[0]).filter(k => !k.includes('id') && typeof data[0][k] !== 'object').join(',');
       const rows = data.map(row => Object.entries(row).filter(([k, v]) => !k.includes('id') && typeof v !== 'object').map(([, v]) => `"${v}"`).join(',')).join('\n');
       csvContent = `${headers}\n${rows}`;
