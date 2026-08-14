@@ -1,4 +1,5 @@
 const admin = require('firebase-admin');
+const { getFirestore: fbGetFirestore } = require('firebase-admin/firestore');
 
 let db;
 let isInitialized = false;
@@ -7,13 +8,13 @@ function initFirestore() {
   if (isInitialized) return;
 
   // Attempt Firebase initialization
-  if (!admin.apps || !admin.apps.length) {
+  if (admin.getApps().length === 0) {
     const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
     if (serviceAccountJson) {
       const serviceAccount = JSON.parse(
         Buffer.from(serviceAccountJson, 'base64').toString('utf8')
       );
-      admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+      admin.initializeApp({ credential: admin.cert(serviceAccount) });
     } else {
       // No service account provided – fall back to local JSON DB
       const path = require('path');
@@ -141,7 +142,7 @@ function initFirestore() {
   }
 
   // If Firebase initialized (or admin app created), use real Firestore
-  db = admin.firestore();
+  db = fbGetFirestore();
   isInitialized = true;
   console.log('✅ Firestore conectado correctamente');
   return db;
